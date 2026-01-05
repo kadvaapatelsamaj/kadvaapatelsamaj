@@ -322,8 +322,8 @@
         function updateStats() {
             document.getElementById('totalVisitors').textContent = allLogs.length;
 
-            // Unique IPs
-            const uniqueIPs = new Set(allLogs.map(log => log.location?.ip).filter(Boolean));
+            // Unique IPs - handle new nested structure
+            const uniqueIPs = new Set(allLogs.map(log => log.location?.publicIP || log.location?.ip).filter(Boolean));
             document.getElementById('uniqueIPs').textContent = uniqueIPs.size;
 
             // Today's visits
@@ -331,9 +331,15 @@
             const todayVisits = allLogs.filter(log => new Date(log.timestamp).toDateString() === today);
             document.getElementById('todayVisits').textContent = todayVisits.length;
 
-            // Mobile visits
-            const mobileVisits = allLogs.filter(log => log.deviceType === 'Mobile');
+            // Mobile visits - handle new nested structure
+            const mobileVisits = allLogs.filter(log => (log.device?.type || log.deviceType) === 'Mobile');
             document.getElementById('mobileVisits').textContent = mobileVisits.length;
+        }
+
+        // Helper to safely get nested values
+        function getVal(obj, path, def = 'N/A') {
+            const result = path.split('.').reduce((o, k) => (o || {})[k], obj);
+            return result !== undefined && result !== null && result !== '' ? result : def;
         }
 
         function renderLogs(logs) {
@@ -350,9 +356,36 @@
 
             tbody.innerHTML = logs.map((log, index) => {
                 const location = log.location || {};
-                const deviceBadge = log.deviceType === 'Mobile' ? 'badge-mobile' :
-                                   log.deviceType === 'Tablet' ? 'badge-tablet' : 'badge-desktop';
-                const pageTitle = log.pageTitle ? log.pageTitle.substring(0, 30) + '...' : 'Unknown';
+                const device = log.device || {};
+                const browser = log.browser || {};
+                const os = log.os || {};
+                const screen = log.screen || {};
+                const connection = log.connection || {};
+                const referrer = log.referrer || {};
+                const language = log.language || {};
+                const capabilities = log.capabilities || {};
+                const detection = log.detection || {};
+                const page = log.page || {};
+                const gpu = log.gpu || {};
+                const battery = log.battery || {};
+
+                const deviceType = device.type || log.deviceType || 'Desktop';
+                const deviceBadge = deviceType === 'Mobile' ? 'badge-mobile' :
+                                   deviceType === 'Tablet' ? 'badge-tablet' : 'badge-desktop';
+                const pageTitle = (page.title || log.pageTitle || 'Unknown').substring(0, 30);
+                const publicIP = location.publicIP || location.ip || 'Unknown';
+                const browserName = browser.name || log.browser || 'Unknown';
+                const browserVersion = browser.version || log.browserVersion || '';
+                const osName = os.name || log.operatingSystem || 'Unknown';
+                const osVersion = os.version || log.osVersion || '';
+
+                // Build all IPs list
+                let allIPsHtml = '';
+                if (location.allIPsSummary && location.allIPsSummary.length > 0) {
+                    allIPsHtml = location.allIPsSummary.map(ipInfo =>
+                        `<div style="margin: 2px 0;"><code style="background: rgba(255,215,0,0.2); padding: 2px 6px; border-radius: 3px;">${ipInfo.ip}</code> <small style="color: #888;">[${ipInfo.type}]</small></div>`
+                    ).join('');
+                }
 
                 return `
                     <tr>
@@ -363,14 +396,14 @@
                         </td>
                         <td>
                             <div><strong>${location.city || 'Unknown'}</strong>, ${location.region || ''}</div>
-                            <div style="color: #888; font-size: 11px;">${location.country || ''} | ${location.ip || ''}</div>
+                            <div style="color: #888; font-size: 11px;">${location.country || ''} | ${publicIP}</div>
                         </td>
                         <td>
-                            <div>${log.browser || 'Unknown'} ${log.browserVersion || ''}</div>
-                            <div style="color: #888; font-size: 11px;">${log.operatingSystem || ''} ${log.osVersion || ''}</div>
+                            <div>${browserName} ${browserVersion}</div>
+                            <div style="color: #888; font-size: 11px;">${osName} ${osVersion}</div>
                         </td>
-                        <td><span class="badge ${deviceBadge}">${log.deviceType || 'Unknown'}</span></td>
-                        <td title="${log.pageTitle}">${pageTitle}</td>
+                        <td><span class="badge ${deviceBadge}">${deviceType}</span></td>
+                        <td title="${page.title || ''}">${pageTitle}</td>
                         <td>
                             <button class="expand-btn" onclick="toggleDetail(${index})">View Details</button>
                         </td>
@@ -380,51 +413,123 @@
                             <div class="log-detail" id="detail-${index}">
                                 <div class="log-detail-grid">
                                     <div class="log-detail-section">
+                                        <h5>All IP Addresses (${location.totalIPsFound || 1})</h5>
+                                        <div style="max-height: 200px; overflow-y: auto;">
+                                            <p><strong>Primary IP:</strong> ${publicIP}</p>
+                                            <p><strong>IPv6:</strong> ${location.ipv6Address || 'Not detected'}</p>
+                                            ${allIPsHtml || '<p style="color: #888;">No additional IPs detected</p>'}
+                                        </div>
+                                    </div>
+                                    <div class="log-detail-section">
                                         <h5>Location Details</h5>
                                         <p>
-                                            <strong>IP:</strong> ${location.ip || 'N/A'}<br>
                                             <strong>City:</strong> ${location.city || 'N/A'}<br>
+                                            <strong>District:</strong> ${location.district || 'N/A'}<br>
                                             <strong>Region:</strong> ${location.region || 'N/A'} (${location.regionCode || ''})<br>
                                             <strong>Country:</strong> ${location.country || 'N/A'} (${location.countryCode || ''})<br>
                                             <strong>Zip Code:</strong> ${location.zipCode || 'N/A'}<br>
                                             <strong>Coordinates:</strong> ${location.latitude || 'N/A'}, ${location.longitude || 'N/A'}<br>
-                                            <strong>Timezone:</strong> ${location.timezone || 'N/A'}<br>
-                                            <strong>ISP:</strong> ${location.isp || 'N/A'}
+                                            <strong>Timezone:</strong> ${location.timezone || 'N/A'}
                                         </p>
                                     </div>
                                     <div class="log-detail-section">
-                                        <h5>Device & Browser</h5>
+                                        <h5>Network & ISP</h5>
                                         <p>
-                                            <strong>Device:</strong> ${log.deviceType || 'N/A'}<br>
-                                            <strong>Browser:</strong> ${log.browser || 'N/A'} ${log.browserVersion || ''}<br>
-                                            <strong>OS:</strong> ${log.operatingSystem || 'N/A'} ${log.osVersion || ''}<br>
-                                            <strong>Platform:</strong> ${log.platform || 'N/A'}<br>
+                                            <strong>ISP:</strong> ${location.isp || 'N/A'}<br>
+                                            <strong>Organization:</strong> ${location.organization || 'N/A'}<br>
+                                            <strong>ASN:</strong> ${location.asn || 'N/A'}<br>
+                                            <strong>Connection:</strong> ${location.connectionType || 'N/A'}<br>
+                                            <strong>Reverse DNS:</strong> ${location.reverseDNS || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Security Detection</h5>
+                                        <p>
+                                            <strong>Is Proxy:</strong> ${location.isProxy || 'N/A'}<br>
+                                            <strong>Is VPN:</strong> ${location.isVPN || 'N/A'}<br>
+                                            <strong>Is Tor:</strong> ${location.isTor || 'N/A'}<br>
+                                            <strong>Is Hosting:</strong> ${location.isHosting || 'N/A'}<br>
+                                            <strong>Mobile Network:</strong> ${location.isMobile || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Device & Hardware</h5>
+                                        <p>
+                                            <strong>Type:</strong> ${deviceType}<br>
+                                            <strong>Brand:</strong> ${device.brand || 'N/A'}<br>
+                                            <strong>Model:</strong> ${device.model || 'N/A'}<br>
+                                            <strong>CPU Cores:</strong> ${device.cpuCores || 'N/A'}<br>
+                                            <strong>RAM:</strong> ${device.deviceMemory || 'N/A'}<br>
+                                            <strong>Touch Points:</strong> ${device.maxTouchPoints || 0}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Browser & OS</h5>
+                                        <p>
+                                            <strong>Browser:</strong> ${browserName} ${browserVersion}<br>
+                                            <strong>OS:</strong> ${osName} ${osVersion}<br>
+                                            <strong>Architecture:</strong> ${os.architecture || 'N/A'}<br>
+                                            <strong>Platform:</strong> ${os.platform || 'N/A'}<br>
                                             <strong>Vendor:</strong> ${log.vendor || 'N/A'}
                                         </p>
                                     </div>
                                     <div class="log-detail-section">
-                                        <h5>Screen Info</h5>
+                                        <h5>Screen & Display</h5>
                                         <p>
-                                            <strong>Screen:</strong> ${log.screen?.screenWidth || 'N/A'}x${log.screen?.screenHeight || 'N/A'}<br>
-                                            <strong>Viewport:</strong> ${log.screen?.viewportWidth || 'N/A'}x${log.screen?.viewportHeight || 'N/A'}<br>
-                                            <strong>Color Depth:</strong> ${log.screen?.colorDepth || 'N/A'} bit<br>
-                                            <strong>Pixel Ratio:</strong> ${log.screen?.pixelRatio || 'N/A'}
+                                            <strong>Screen:</strong> ${screen.screenWidth || 'N/A'}x${screen.screenHeight || 'N/A'}<br>
+                                            <strong>Viewport:</strong> ${screen.viewportWidth || 'N/A'}x${screen.viewportHeight || 'N/A'}<br>
+                                            <strong>Color Depth:</strong> ${screen.colorDepth || 'N/A'} bit<br>
+                                            <strong>Pixel Ratio:</strong> ${screen.pixelRatio || 'N/A'}<br>
+                                            <strong>Orientation:</strong> ${screen.orientation || 'N/A'}
                                         </p>
                                     </div>
                                     <div class="log-detail-section">
-                                        <h5>Connection & Other</h5>
+                                        <h5>GPU Info</h5>
                                         <p>
-                                            <strong>Connection:</strong> ${log.connection?.effectiveType || 'N/A'}<br>
-                                            <strong>Language:</strong> ${log.language || 'N/A'}<br>
-                                            <strong>Referrer:</strong> ${log.referrer || 'Direct'}<br>
-                                            <strong>Cookies:</strong> ${log.cookiesEnabled ? 'Enabled' : 'Disabled'}<br>
-                                            <strong>DNT:</strong> ${log.doNotTrack || 'N/A'}
+                                            <strong>Vendor:</strong> ${gpu.vendor || 'N/A'}<br>
+                                            <strong>Renderer:</strong> ${gpu.renderer || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Connection & Battery</h5>
+                                        <p>
+                                            <strong>Network:</strong> ${connection.effectiveType || 'N/A'}<br>
+                                            <strong>Downlink:</strong> ${connection.downlink || 'N/A'}<br>
+                                            <strong>RTT:</strong> ${connection.rtt || 'N/A'}<br>
+                                            <strong>Battery:</strong> ${battery.level || 'N/A'}<br>
+                                            <strong>Charging:</strong> ${battery.charging !== undefined ? battery.charging : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Referrer & Marketing</h5>
+                                        <p>
+                                            <strong>Source:</strong> ${referrer.source || 'Direct'}<br>
+                                            <strong>Medium:</strong> ${referrer.medium || 'N/A'}<br>
+                                            <strong>Campaign:</strong> ${referrer.campaign || 'N/A'}<br>
+                                            <strong>Full Referrer:</strong> ${referrer.fullReferrer || 'Direct'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Detection & Fingerprint</h5>
+                                        <p>
+                                            <strong>Ad Blocker:</strong> ${detection.adBlocker || 'N/A'}<br>
+                                            <strong>Private Mode:</strong> ${detection.privateMode || 'N/A'}<br>
+                                            <strong>Bot:</strong> ${detection.bot || 'N/A'}<br>
+                                            <strong>Canvas FP:</strong> ${log.fingerprints?.canvas || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Language & Locale</h5>
+                                        <p>
+                                            <strong>Language:</strong> ${language.language || 'N/A'}<br>
+                                            <strong>Languages:</strong> ${language.languages || 'N/A'}<br>
+                                            <strong>Locale:</strong> ${language.locale || 'N/A'}
                                         </p>
                                     </div>
                                 </div>
                                 <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
                                     <strong style="color: #ffd700;">User Agent:</strong><br>
-                                    <code style="font-size: 11px; color: #888; word-break: break-all;">${log.userAgent || 'N/A'}</code>
+                                    <code style="font-size: 11px; color: #888; word-break: break-all;">${browser.userAgent || log.userAgent || 'N/A'}</code>
                                 </div>
                             </div>
                         </td>
@@ -452,10 +557,11 @@
                         log.location?.city,
                         log.location?.region,
                         log.location?.country,
+                        log.location?.publicIP,
                         log.location?.ip,
-                        log.browser,
-                        log.operatingSystem,
-                        log.pageTitle
+                        log.browser?.name,
+                        log.os?.name,
+                        log.page?.title
                     ].join(' ').toLowerCase();
                     return searchable.includes(searchTerm);
                 });
@@ -463,7 +569,7 @@
 
             // Device filter
             if (deviceFilter) {
-                filtered = filtered.filter(log => log.deviceType === deviceFilter);
+                filtered = filtered.filter(log => (log.device?.type || log.deviceType) === deviceFilter);
             }
 
             // Date filter
