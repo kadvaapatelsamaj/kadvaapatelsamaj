@@ -113,59 +113,123 @@
 
     // Get device type with model detection
     function getDeviceInfo() {
-        const ua = navigator.userAgent;
+        const ua = navigator.userAgent.toLowerCase();
+        const uaOriginal = navigator.userAgent;
         let deviceType = 'Desktop';
         let deviceModel = 'Unknown';
         let deviceBrand = 'Unknown';
 
-        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+        // Multiple detection methods for reliability
+
+        // Method 1: User Agent detection
+        const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|phone|tablet|kindle|silk|playbook/i.test(uaOriginal);
+
+        // Method 2: Touch capability
+        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+        // Method 3: Screen size (mobile typically < 768px width)
+        const isSmallScreen = window.screen.width < 768;
+
+        // Method 4: Pointer type (coarse = touch, fine = mouse)
+        const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+
+        // Method 5: Hover capability (mobile typically can't hover)
+        const cannotHover = window.matchMedia('(hover: none)').matches;
+
+        // Tablet detection
+        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobile))/i.test(uaOriginal)) {
             deviceType = 'Tablet';
-        } else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+        }
+        // Mobile detection - use multiple signals
+        else if (
+            /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Opera M(obi|ini)|webOS|phone/i.test(uaOriginal) ||
+            (hasTouch && isSmallScreen) ||
+            (isCoarsePointer && cannotHover && hasTouch)
+        ) {
+            deviceType = 'Mobile';
+        }
+        // Additional check: if touch + small screen, likely mobile even if UA says otherwise
+        else if (hasTouch && isSmallScreen && isCoarsePointer) {
             deviceType = 'Mobile';
         }
 
-        // Detect device brand/model
-        if (ua.includes('iPhone')) {
+        // Detect device brand/model (use lowercase ua for comparison)
+        if (ua.includes('iphone')) {
             deviceBrand = 'Apple';
             deviceModel = 'iPhone';
-        } else if (ua.includes('iPad')) {
+            deviceType = 'Mobile';
+        } else if (ua.includes('ipad')) {
             deviceBrand = 'Apple';
             deviceModel = 'iPad';
-        } else if (ua.includes('Samsung')) {
+            deviceType = 'Tablet';
+        } else if (ua.includes('samsung')) {
             deviceBrand = 'Samsung';
-            const match = ua.match(/Samsung[^;)]*/i);
+            const match = uaOriginal.match(/SM-[A-Z0-9]+/i) || uaOriginal.match(/Samsung[^;)]*/i);
             deviceModel = match ? match[0] : 'Samsung Device';
-        } else if (ua.includes('Pixel')) {
+        } else if (ua.includes('pixel')) {
             deviceBrand = 'Google';
-            const match = ua.match(/Pixel[^;)]*/i);
+            const match = uaOriginal.match(/Pixel[^;)]*/i);
             deviceModel = match ? match[0] : 'Pixel';
-        } else if (ua.includes('OnePlus')) {
+        } else if (ua.includes('oneplus')) {
             deviceBrand = 'OnePlus';
-        } else if (ua.includes('Xiaomi') || ua.includes('Redmi') || ua.includes('POCO')) {
+            const match = uaOriginal.match(/OnePlus[^;)]*/i);
+            deviceModel = match ? match[0] : 'OnePlus Device';
+        } else if (ua.includes('xiaomi') || ua.includes('redmi') || ua.includes('poco') || ua.includes('mi ')) {
             deviceBrand = 'Xiaomi';
-        } else if (ua.includes('HUAWEI') || ua.includes('Honor')) {
+            const match = uaOriginal.match(/(Redmi|POCO|Mi)[^;)]*/i);
+            deviceModel = match ? match[0] : 'Xiaomi Device';
+        } else if (ua.includes('huawei') || ua.includes('honor')) {
             deviceBrand = 'Huawei';
-        } else if (ua.includes('OPPO')) {
+            const match = uaOriginal.match(/(HUAWEI|Honor)[^;)]*/i);
+            deviceModel = match ? match[0] : 'Huawei Device';
+        } else if (ua.includes('oppo') || ua.includes('cph')) {
             deviceBrand = 'OPPO';
+            const match = uaOriginal.match(/(OPPO|CPH)[^;)]*/i);
+            deviceModel = match ? match[0] : 'OPPO Device';
         } else if (ua.includes('vivo')) {
             deviceBrand = 'Vivo';
-        } else if (ua.includes('realme')) {
+            const match = uaOriginal.match(/vivo[^;)]*/i);
+            deviceModel = match ? match[0] : 'Vivo Device';
+        } else if (ua.includes('realme') || ua.includes('rmx')) {
             deviceBrand = 'Realme';
-        } else if (ua.includes('Motorola') || ua.includes('moto')) {
+            const match = uaOriginal.match(/(Realme|RMX)[^;)]*/i);
+            deviceModel = match ? match[0] : 'Realme Device';
+        } else if (ua.includes('motorola') || ua.includes('moto')) {
             deviceBrand = 'Motorola';
-        } else if (ua.includes('Nokia')) {
+            const match = uaOriginal.match(/moto[^;)]*/i);
+            deviceModel = match ? match[0] : 'Motorola Device';
+        } else if (ua.includes('nokia')) {
             deviceBrand = 'Nokia';
-        } else if (ua.includes('LG')) {
+        } else if (ua.includes(' lg')) {
             deviceBrand = 'LG';
-        } else if (ua.includes('Sony')) {
+        } else if (ua.includes('sony') || ua.includes('xperia')) {
             deviceBrand = 'Sony';
-        } else if (ua.includes('HTC')) {
+        } else if (ua.includes('htc')) {
             deviceBrand = 'HTC';
-        } else if (ua.includes('Asus')) {
+        } else if (ua.includes('asus') || ua.includes('zenfone')) {
             deviceBrand = 'Asus';
+        } else if (ua.includes('lenovo')) {
+            deviceBrand = 'Lenovo';
+        } else if (ua.includes('nothing')) {
+            deviceBrand = 'Nothing';
+        } else if (ua.includes('android')) {
+            deviceBrand = 'Android Device';
         }
 
-        return { deviceType, deviceModel, deviceBrand };
+        return {
+            deviceType,
+            deviceModel,
+            deviceBrand,
+            // Detection signals for debugging
+            detectionSignals: {
+                hasTouch,
+                isSmallScreen,
+                isCoarsePointer,
+                cannotHover,
+                screenWidth: window.screen.width,
+                screenHeight: window.screen.height
+            }
+        };
     }
 
     // Get comprehensive screen info
@@ -964,6 +1028,7 @@
                 type: deviceInfo.deviceType,
                 brand: deviceInfo.deviceBrand,
                 model: deviceInfo.deviceModel,
+                detectionSignals: deviceInfo.detectionSignals,
                 ...hardwareInfo
             },
 
