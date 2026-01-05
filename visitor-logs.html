@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Logs - Admin Dashboard</title>
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #b0b0b0;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            border-radius: 12px;
+            min-width: 150px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #4caf50;
+        }
+        .stat-card .label {
+            font-size: 12px;
+            color: #b0b0b0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: white;
+        }
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+        }
+        .logs-table-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .logs-table th {
+            background: rgba(255, 215, 0, 0.1);
+            padding: 15px 12px;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffd700;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .logs-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+            vertical-align: top;
+        }
+        .logs-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .log-detail {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            display: none;
+        }
+        .log-detail.active {
+            display: block;
+        }
+        .log-detail h4 {
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .log-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .log-detail-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .log-detail-section h5 {
+            color: #64b5f6;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .log-detail-section p {
+            font-size: 13px;
+            line-height: 1.8;
+            color: #ccc;
+        }
+        .log-detail-section strong {
+            color: #fff;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-desktop {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        .badge-mobile {
+            background: rgba(33, 150, 243, 0.2);
+            color: #2196f3;
+        }
+        .badge-tablet {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+        }
+        .expand-btn {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #64b5f6;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .expand-btn:hover {
+            background: rgba(100, 181, 246, 0.1);
+            border-color: #64b5f6;
+        }
+        .no-logs {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+        .no-logs h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #aaa;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-bar input, .filter-bar select {
+            padding: 10px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 14px;
+        }
+        .filter-bar input::placeholder {
+            color: #888;
+        }
+        .filter-bar input:focus, .filter-bar select:focus {
+            outline: none;
+            border-color: #ffd700;
+        }
+        @media (max-width: 768px) {
+            .logs-table-container {
+                overflow-x: auto;
+            }
+            .logs-table {
+                min-width: 800px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Visitor Logs Dashboard</h1>
+        <p class="subtitle">View and export visitor tracking data for CMS integration and Google Tags setup</p>
+
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="value" id="totalVisitors">0</div>
+                <div class="label">Total Visits</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="uniqueIPs">0</div>
+                <div class="label">Unique IPs</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="todayVisits">0</div>
+                <div class="label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="mobileVisits">0</div>
+                <div class="label">Mobile</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" onclick="exportVisitorLogs()">Export as Text File</button>
+            <button class="btn btn-secondary" onclick="exportVisitorLogsJSON()">Export as JSON</button>
+            <button class="btn btn-secondary" onclick="copyLogsToClipboard()">Copy to Clipboard</button>
+            <button class="btn btn-secondary" onclick="refreshLogs()">Refresh</button>
+            <button class="btn btn-danger" onclick="clearVisitorLogs()">Clear All Logs</button>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" id="searchInput" placeholder="Search by city, IP, browser..." onkeyup="filterLogs()">
+            <select id="deviceFilter" onchange="filterLogs()">
+                <option value="">All Devices</option>
+                <option value="Desktop">Desktop</option>
+                <option value="Mobile">Mobile</option>
+                <option value="Tablet">Tablet</option>
+            </select>
+            <select id="dateFilter" onchange="filterLogs()">
+                <option value="">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+            </select>
+        </div>
+
+        <div class="logs-table-container">
+            <table class="logs-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Timestamp</th>
+                        <th>Location</th>
+                        <th>Browser</th>
+                        <th>Device</th>
+                        <th>Page</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="noLogs" class="no-logs" style="display: none;">
+            <h3>No Visitor Logs Found</h3>
+            <p>Visitor data will appear here once users accept cookies on your website.</p>
+        </div>
+    </div>
+
+    <script src="cookie-consent.js"></script>
+    <script>
+        let allLogs = [];
+
+        function loadLogs() {
+            allLogs = getVisitorLogs().reverse(); // Most recent first
+            updateStats();
+            renderLogs(allLogs);
+        }
+
+        function updateStats() {
+            document.getElementById('totalVisitors').textContent = allLogs.length;
+
+            // Unique IPs
+            const uniqueIPs = new Set(allLogs.map(log => log.location?.ip).filter(Boolean));
+            document.getElementById('uniqueIPs').textContent = uniqueIPs.size;
+
+            // Today's visits
+            const today = new Date().toDateString();
+            const todayVisits = allLogs.filter(log => new Date(log.timestamp).toDateString() === today);
+            document.getElementById('todayVisits').textContent = todayVisits.length;
+
+            // Mobile visits
+            const mobileVisits = allLogs.filter(log => log.deviceType === 'Mobile');
+            document.getElementById('mobileVisits').textContent = mobileVisits.length;
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('logsTableBody');
+            const noLogs = document.getElementById('noLogs');
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '';
+                noLogs.style.display = 'block';
+                return;
+            }
+
+            noLogs.style.display = 'none';
+
+            tbody.innerHTML = logs.map((log, index) => {
+                const location = log.location || {};
+                const deviceBadge = log.deviceType === 'Mobile' ? 'badge-mobile' :
+                                   log.deviceType === 'Tablet' ? 'badge-tablet' : 'badge-desktop';
+                const pageTitle = log.pageTitle ? log.pageTitle.substring(0, 30) + '...' : 'Unknown';
+
+                return `
+                    <tr>
+                        <td>${allLogs.length - index}</td>
+                        <td>
+                            <div>${new Date(log.timestamp).toLocaleDateString()}</div>
+                            <div style="color: #888; font-size: 11px;">${new Date(log.timestamp).toLocaleTimeString()}</div>
+                        </td>
+                        <td>
+                            <div><strong>${location.city || 'Unknown'}</strong>, ${location.region || ''}</div>
+                            <div style="color: #888; font-size: 11px;">${location.country || ''} | ${location.ip || ''}</div>
+                        </td>
+                        <td>
+                            <div>${log.browser || 'Unknown'} ${log.browserVersion || ''}</div>
+                            <div style="color: #888; font-size: 11px;">${log.operatingSystem || ''} ${log.osVersion || ''}</div>
+                        </td>
+                        <td><span class="badge ${deviceBadge}">${log.deviceType || 'Unknown'}</span></td>
+                        <td title="${log.pageTitle}">${pageTitle}</td>
+                        <td>
+                            <button class="expand-btn" onclick="toggleDetail(${index})">View Details</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" style="padding: 0;">
+                            <div class="log-detail" id="detail-${index}">
+                                <div class="log-detail-grid">
+                                    <div class="log-detail-section">
+                                        <h5>Location Details</h5>
+                                        <p>
+                                            <strong>IP:</strong> ${location.ip || 'N/A'}<br>
+                                            <strong>City:</strong> ${location.city || 'N/A'}<br>
+                                            <strong>Region:</strong> ${location.region || 'N/A'} (${location.regionCode || ''})<br>
+                                            <strong>Country:</strong> ${location.country || 'N/A'} (${location.countryCode || ''})<br>
+                                            <strong>Zip Code:</strong> ${location.zipCode || 'N/A'}<br>
+                                            <strong>Coordinates:</strong> ${location.latitude || 'N/A'}, ${location.longitude || 'N/A'}<br>
+                                            <strong>Timezone:</strong> ${location.timezone || 'N/A'}<br>
+                                            <strong>ISP:</strong> ${location.isp || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Device & Browser</h5>
+                                        <p>
+                                            <strong>Device:</strong> ${log.deviceType || 'N/A'}<br>
+                                            <strong>Browser:</strong> ${log.browser || 'N/A'} ${log.browserVersion || ''}<br>
+                                            <strong>OS:</strong> ${log.operatingSystem || 'N/A'} ${log.osVersion || ''}<br>
+                                            <strong>Platform:</strong> ${log.platform || 'N/A'}<br>
+                                            <strong>Vendor:</strong> ${log.vendor || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Screen Info</h5>
+                                        <p>
+                                            <strong>Screen:</strong> ${log.screen?.screenWidth || 'N/A'}x${log.screen?.screenHeight || 'N/A'}<br>
+                                            <strong>Viewport:</strong> ${log.screen?.viewportWidth || 'N/A'}x${log.screen?.viewportHeight || 'N/A'}<br>
+                                            <strong>Color Depth:</strong> ${log.screen?.colorDepth || 'N/A'} bit<br>
+                                            <strong>Pixel Ratio:</strong> ${log.screen?.pixelRatio || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div class="log-detail-section">
+                                        <h5>Connection & Other</h5>
+                                        <p>
+                                            <strong>Connection:</strong> ${log.connection?.effectiveType || 'N/A'}<br>
+                                            <strong>Language:</strong> ${log.language || 'N/A'}<br>
+                                            <strong>Referrer:</strong> ${log.referrer || 'Direct'}<br>
+                                            <strong>Cookies:</strong> ${log.cookiesEnabled ? 'Enabled' : 'Disabled'}<br>
+                                            <strong>DNT:</strong> ${log.doNotTrack || 'N/A'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                                    <strong style="color: #ffd700;">User Agent:</strong><br>
+                                    <code style="font-size: 11px; color: #888; word-break: break-all;">${log.userAgent || 'N/A'}</code>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleDetail(index) {
+            const detail = document.getElementById(`detail-${index}`);
+            detail.classList.toggle('active');
+        }
+
+        function filterLogs() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const deviceFilter = document.getElementById('deviceFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+
+            let filtered = allLogs;
+
+            // Search filter
+            if (searchTerm) {
+                filtered = filtered.filter(log => {
+                    const searchable = [
+                        log.location?.city,
+                        log.location?.region,
+                        log.location?.country,
+                        log.location?.ip,
+                        log.browser,
+                        log.operatingSystem,
+                        log.pageTitle
+                    ].join(' ').toLowerCase();
+                    return searchable.includes(searchTerm);
+                });
+            }
+
+            // Device filter
+            if (deviceFilter) {
+                filtered = filtered.filter(log => log.deviceType === deviceFilter);
+            }
+
+            // Date filter
+            if (dateFilter) {
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+                if (dateFilter === 'today') {
+                    filtered = filtered.filter(log => new Date(log.timestamp) >= today);
+                } else if (dateFilter === 'week') {
+                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    filtered = filtered.filter(log => new Date(log.timestamp) >= weekAgo);
+                } else if (dateFilter === 'month') {
+                    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    filtered = filtered.filter(log => new Date(log.timestamp) >= monthAgo);
+                }
+            }
+
+            renderLogs(filtered);
+        }
+
+        function copyLogsToClipboard() {
+            const logs = getVisitorLogs();
+            if (logs.length === 0) {
+                alert('No logs to copy.');
+                return;
+            }
+            navigator.clipboard.writeText(JSON.stringify(logs, null, 2))
+                .then(() => alert('Logs copied to clipboard!'))
+                .catch(() => alert('Failed to copy logs.'));
+        }
+
+        function refreshLogs() {
+            loadLogs();
+            alert('Logs refreshed!');
+        }
+
+        // Load on page load
+        document.addEventListener('DOMContentLoaded', loadLogs);
+    </script>
+</body>
+</html>
