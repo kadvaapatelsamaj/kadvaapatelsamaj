@@ -1098,8 +1098,29 @@
         };
     }
 
+    // Google Sheets endpoint
+    const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwerTo9uXKyEDSxGJSNkSeDb0sEPHIuPAw-OtfyD35wjh1r3At2wN_-ho8LdSEsSvTA9A/exec';
+
+    // Send data to Google Sheets
+    async function sendToGoogleSheets(visitorData) {
+        try {
+            const response = await fetch(GOOGLE_SHEETS_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Required for Google Apps Script
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(visitorData)
+            });
+            console.log('Data sent to Google Sheets');
+        } catch (error) {
+            console.error('Failed to send to Google Sheets:', error);
+        }
+    }
+
     // Save visitor log
     function saveVisitorLog(visitorData) {
+        // Save to localStorage (for local dashboard)
         let logs = [];
         try {
             const existingLogs = localStorage.getItem(LOGS_KEY);
@@ -1119,6 +1140,9 @@
 
         localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
         console.log('Enhanced visitor data logged:', visitorData);
+
+        // Also send to Google Sheets
+        sendToGoogleSheets(visitorData);
     }
 
     // Create and show consent banner
