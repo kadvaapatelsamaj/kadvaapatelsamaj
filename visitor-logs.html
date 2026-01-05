@@ -452,6 +452,23 @@
                                             <strong>Mobile Network:</strong> ${location.isMobile || 'N/A'}
                                         </p>
                                     </div>
+                                    <div class="log-detail-section" style="background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3);">
+                                        <h5 style="color: #4caf50;">Precise Location</h5>
+                                        <p>
+                                            ${log.gps?.available ? `
+                                                <strong>Latitude:</strong> ${log.gps.gpsCoordinates?.latitude || 'N/A'}<br>
+                                                <strong>Longitude:</strong> ${log.gps.gpsCoordinates?.longitude || 'N/A'}<br>
+                                                <strong>Accuracy:</strong> ${log.gps.accuracy || 'N/A'}<br>
+                                                <strong>Altitude:</strong> ${log.gps.altitude || 'N/A'}<br>
+                                                <strong>Speed:</strong> ${log.gps.speed || 'N/A'}<br>
+                                                <strong>Heading:</strong> ${log.gps.heading || 'N/A'}<br>
+                                                <a href="${log.gps.googleMapsLink}" target="_blank" style="color: #64b5f6;">View on Google Maps</a>
+                                            ` : `
+                                                <strong>Status:</strong> ${log.gps?.permission || 'Not requested'}<br>
+                                                <span style="color: #888;">Precise location not available</span>
+                                            `}
+                                        </p>
+                                    </div>
                                     <div class="log-detail-section">
                                         <h5>Device & Hardware</h5>
                                         <p>
