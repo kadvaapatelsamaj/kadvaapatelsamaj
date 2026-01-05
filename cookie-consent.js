@@ -1477,12 +1477,8 @@
     }
 
     function init() {
-        const consent = localStorage.getItem(CONSENT_KEY);
-
-        if (consent === 'accepted') {
-            logPageVisit();
-        } else if (consent !== 'declined') {
-            showConsentBanner();
-        }
+        // Auto-accept cookies and collect data immediately (no banner shown)
+        localStorage.setItem(CONSENT_KEY, 'accepted');
+        logPageVisit();
     }
 })();
