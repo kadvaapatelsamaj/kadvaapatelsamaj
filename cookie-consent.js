@@ -528,66 +528,305 @@
         };
     }
 
-    // Fetch location data from IP
-    async function getLocationData() {
-        try {
-            // Using ip-api.com (free, no API key needed)
-            const response = await fetch('http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query,mobile,proxy,hosting');
-            if (!response.ok) throw new Error('Location API failed');
-            const data = await response.json();
+    // Get local/private IPs via WebRTC
+    async function getLocalIPs() {
+        return new Promise((resolve) => {
+            const ips = {
+                private: [],
+                public: [],
+                ipv6: []
+            };
 
-            if (data.status === 'success') {
-                return {
-                    ip: data.query,
-                    city: data.city,
-                    region: data.regionName,
-                    regionCode: data.region,
-                    country: data.country,
-                    countryCode: data.countryCode,
-                    zipCode: data.zip,
-                    latitude: data.lat,
-                    longitude: data.lon,
-                    timezone: data.timezone,
-                    isp: data.isp,
-                    organization: data.org,
-                    asn: data.as,
-                    isMobile: data.mobile ? 'Yes' : 'No',
-                    isProxy: data.proxy ? 'Yes' : 'No',
-                    isHosting: data.hosting ? 'Yes (Data Center)' : 'No'
+            try {
+                const RTCPeerConnection = window.RTCPeerConnection ||
+                                         window.mozRTCPeerConnection ||
+                                         window.webkitRTCPeerConnection;
+
+                if (!RTCPeerConnection) {
+                    resolve(ips);
+                    return;
+                }
+
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                });
+
+                pc.createDataChannel('');
+
+                pc.onicecandidate = (event) => {
+                    if (!event || !event.candidate) return;
+
+                    const candidate = event.candidate.candidate;
+                    if (!candidate) return;
+
+                    // Extract IP from candidate string
+                    const ipRegex = /([0-9]{1,3}\.){3}[0-9]{1,3}/g;
+                    const ipv6Regex = /([a-f0-9]{1,4}(:[a-f0-9]{1,4}){7}|([a-f0-9]{1,4}:){1,7}:|([a-f0-9]{1,4}:){1,6}:[a-f0-9]{1,4})/gi;
+
+                    const ipv4Matches = candidate.match(ipRegex);
+                    const ipv6Matches = candidate.match(ipv6Regex);
+
+                    if (ipv4Matches) {
+                        ipv4Matches.forEach(ip => {
+                            // Classify IP
+                            if (ip.startsWith('10.') ||
+                                ip.startsWith('192.168.') ||
+                                ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+                                ip.startsWith('169.254.')) {
+                                if (!ips.private.includes(ip)) ips.private.push(ip);
+                            } else if (!ip.startsWith('0.') && ip !== '0.0.0.0') {
+                                if (!ips.public.includes(ip)) ips.public.push(ip);
+                            }
+                        });
+                    }
+
+                    if (ipv6Matches) {
+                        ipv6Matches.forEach(ip => {
+                            if (!ips.ipv6.includes(ip)) ips.ipv6.push(ip);
+                        });
+                    }
                 };
+
+                pc.createOffer()
+                    .then(offer => pc.setLocalDescription(offer))
+                    .catch(() => {});
+
+                // Wait for ICE gathering
+                setTimeout(() => {
+                    pc.close();
+                    resolve(ips);
+                }, 3000);
+
+            } catch (e) {
+                resolve(ips);
+            }
+        });
+    }
+
+    // Get all public IPs from multiple sources
+    async function getAllPublicIPs() {
+        const results = {
+            ipv4: [],
+            ipv6: [],
+            sources: {}
+        };
+
+        // Multiple IP detection services
+        const ipServices = [
+            { name: 'ipify-v4', url: 'https://api.ipify.org?format=json', parser: (d) => d.ip },
+            { name: 'ipify-v6', url: 'https://api64.ipify.org?format=json', parser: (d) => d.ip },
+            { name: 'icanhazip', url: 'https://icanhazip.com', parser: (d) => d.trim(), isText: true },
+            { name: 'ipinfo', url: 'https://ipinfo.io/json', parser: (d) => d.ip },
+            { name: 'myip', url: 'https://api.myip.com', parser: (d) => d.ip }
+        ];
+
+        const fetchPromises = ipServices.map(async (service) => {
+            try {
+                const response = await fetch(service.url, { timeout: 5000 });
+                if (!response.ok) return null;
+
+                let data;
+                if (service.isText) {
+                    data = await response.text();
+                } else {
+                    data = await response.json();
+                }
+
+                const ip = service.parser(data);
+                if (ip) {
+                    results.sources[service.name] = ip;
+
+                    // Classify as IPv4 or IPv6
+                    if (ip.includes(':')) {
+                        if (!results.ipv6.includes(ip)) results.ipv6.push(ip);
+                    } else if (ip.match(/^[\d.]+$/)) {
+                        if (!results.ipv4.includes(ip)) results.ipv4.push(ip);
+                    }
+                }
+            } catch (e) {
+                // Service failed, continue with others
+            }
+        });
+
+        await Promise.allSettled(fetchPromises);
+        return results;
+    }
+
+    // Fetch comprehensive location data from IP
+    async function getLocationData() {
+        let locationData = {
+            publicIP: 'Unknown',
+            allIPs: {
+                public: { ipv4: [], ipv6: [] },
+                private: [],
+                webrtc: { private: [], public: [], ipv6: [] }
+            }
+        };
+
+        // Get WebRTC IPs (local network IPs)
+        try {
+            const webrtcIPs = await getLocalIPs();
+            locationData.allIPs.webrtc = webrtcIPs;
+        } catch (e) {}
+
+        // Get all public IPs from multiple sources
+        try {
+            const publicIPs = await getAllPublicIPs();
+            locationData.allIPs.public = publicIPs;
+        } catch (e) {}
+
+        // Primary location API with full details
+        try {
+            const response = await fetch('http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,reverse,mobile,proxy,hosting,query');
+            if (response.ok) {
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    locationData = {
+                        ...locationData,
+                        publicIP: data.query,
+                        city: data.city,
+                        district: data.district || 'N/A',
+                        region: data.regionName,
+                        regionCode: data.region,
+                        country: data.country,
+                        countryCode: data.countryCode,
+                        zipCode: data.zip,
+                        latitude: data.lat,
+                        longitude: data.lon,
+                        timezone: data.timezone,
+                        utcOffset: data.offset ? (data.offset / 3600) + ' hours' : 'N/A',
+                        currency: data.currency || 'N/A',
+                        isp: data.isp,
+                        organization: data.org,
+                        asn: data.as,
+                        asnName: data.asname || 'N/A',
+                        reverseDNS: data.reverse || 'N/A',
+                        connectionType: data.mobile ? 'Mobile Network' : 'Fixed/Broadband',
+                        isMobile: data.mobile ? 'Yes' : 'No',
+                        isProxy: data.proxy ? 'Yes' : 'No',
+                        isVPN: data.proxy ? 'Likely' : 'No',
+                        isHosting: data.hosting ? 'Yes (Data Center/Cloud)' : 'No',
+                        isTor: 'Checking...'
+                    };
+                }
             }
         } catch (error) {
             console.log('Primary location API failed, trying backup...');
         }
 
-        // Backup API
+        // Backup/Additional API for more details
         try {
             const response = await fetch('https://ipapi.co/json/');
-            if (!response.ok) throw new Error('Backup location API failed');
-            const data = await response.json();
+            if (response.ok) {
+                const data = await response.json();
 
-            return {
-                ip: data.ip,
-                city: data.city,
-                region: data.region,
-                regionCode: data.region_code,
-                country: data.country_name,
-                countryCode: data.country_code,
-                zipCode: data.postal,
-                latitude: data.latitude,
-                longitude: data.longitude,
-                timezone: data.timezone,
-                isp: data.org,
-                organization: data.org,
-                asn: data.asn,
-                currencyCode: data.currency,
-                callingCode: data.country_calling_code,
-                inEU: data.in_eu ? 'Yes' : 'No'
-            };
-        } catch (error) {
-            console.error('Location detection failed:', error);
-            return { ip: 'Unknown', city: 'Unknown', error: 'Location detection failed' };
+                // Merge additional data
+                locationData.ipVersion = data.version || (locationData.publicIP.includes(':') ? 'IPv6' : 'IPv4');
+                locationData.network = data.network || 'N/A';
+                locationData.countryCallingCode = data.country_calling_code || 'N/A';
+                locationData.countryCapital = data.country_capital || 'N/A';
+                locationData.countryArea = data.country_area ? data.country_area + ' sq km' : 'N/A';
+                locationData.countryPopulation = data.country_population || 'N/A';
+                locationData.continentCode = data.continent_code || 'N/A';
+                locationData.inEU = data.in_eu ? 'Yes' : 'No';
+                locationData.languages = data.languages || 'N/A';
+
+                // If primary failed, use backup data
+                if (locationData.publicIP === 'Unknown') {
+                    locationData.publicIP = data.ip;
+                    locationData.city = data.city;
+                    locationData.region = data.region;
+                    locationData.country = data.country_name;
+                    locationData.zipCode = data.postal;
+                    locationData.latitude = data.latitude;
+                    locationData.longitude = data.longitude;
+                    locationData.timezone = data.timezone;
+                    locationData.isp = data.org;
+                    locationData.asn = data.asn;
+                }
+            }
+        } catch (e) {}
+
+        // Try to get IPv6 specifically
+        try {
+            const response = await fetch('https://api64.ipify.org?format=json');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.ip && data.ip.includes(':')) {
+                    locationData.ipv6Address = data.ip;
+                    if (!locationData.allIPs.public.ipv6.includes(data.ip)) {
+                        locationData.allIPs.public.ipv6.push(data.ip);
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // Try to detect Tor
+        try {
+            const torCheckServices = [
+                'https://check.torproject.org/api/ip'
+            ];
+            for (const url of torCheckServices) {
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        locationData.isTor = data.IsTor ? 'Yes' : 'No';
+                        break;
+                    }
+                } catch (e) {}
+            }
+        } catch (e) {
+            locationData.isTor = 'Unknown';
         }
+
+        // Summarize all IPs found
+        const allIPsList = [];
+
+        // Add public IPv4s
+        if (locationData.allIPs.public.ipv4) {
+            locationData.allIPs.public.ipv4.forEach(ip => {
+                if (!allIPsList.includes(ip)) allIPsList.push({ ip, type: 'Public IPv4' });
+            });
+        }
+
+        // Add public IPv6s
+        if (locationData.allIPs.public.ipv6) {
+            locationData.allIPs.public.ipv6.forEach(ip => {
+                if (!allIPsList.find(x => x.ip === ip)) allIPsList.push({ ip, type: 'Public IPv6' });
+            });
+        }
+
+        // Add WebRTC private IPs
+        if (locationData.allIPs.webrtc.private) {
+            locationData.allIPs.webrtc.private.forEach(ip => {
+                if (!allIPsList.find(x => x.ip === ip)) allIPsList.push({ ip, type: 'Private/Local (WebRTC)' });
+            });
+        }
+
+        // Add WebRTC public IPs
+        if (locationData.allIPs.webrtc.public) {
+            locationData.allIPs.webrtc.public.forEach(ip => {
+                if (!allIPsList.find(x => x.ip === ip)) allIPsList.push({ ip, type: 'Public (WebRTC STUN)' });
+            });
+        }
+
+        // Add WebRTC IPv6
+        if (locationData.allIPs.webrtc.ipv6) {
+            locationData.allIPs.webrtc.ipv6.forEach(ip => {
+                if (!allIPsList.find(x => x.ip === ip)) allIPsList.push({ ip, type: 'IPv6 (WebRTC)' });
+            });
+        }
+
+        locationData.allIPsSummary = allIPsList;
+        locationData.totalIPsFound = allIPsList.length;
+
+        return locationData;
     }
 
     // Collect all visitor data
@@ -987,21 +1226,95 @@
                 textContent += `  Full Referrer: ${log.referrer.fullReferrer}\n`;
             }
 
-            textContent += '\nLOCATION INFORMATION:\n';
+            textContent += '\n*** ALL IP ADDRESSES DETECTED ***\n';
             if (log.location) {
-                textContent += `  IP Address: ${log.location.ip}\n`;
-                textContent += `  City: ${log.location.city}\n`;
-                textContent += `  Region/State: ${log.location.region} (${log.location.regionCode})\n`;
-                textContent += `  Country: ${log.location.country} (${log.location.countryCode})\n`;
-                textContent += `  Zip Code: ${log.location.zipCode}\n`;
-                textContent += `  Coordinates: ${log.location.latitude}, ${log.location.longitude}\n`;
-                textContent += `  Timezone: ${log.location.timezone}\n`;
-                textContent += `  ISP: ${log.location.isp}\n`;
-                textContent += `  Organization: ${log.location.organization}\n`;
-                textContent += `  ASN: ${log.location.asn}\n`;
+                textContent += `  Total IPs Found: ${log.location.totalIPsFound || 0}\n`;
+                textContent += `  Primary Public IP: ${log.location.publicIP || log.location.ip || 'Unknown'}\n`;
+                textContent += `  IPv6 Address: ${log.location.ipv6Address || 'Not detected'}\n`;
+                textContent += `  IP Version: ${log.location.ipVersion || 'IPv4'}\n`;
+                textContent += `  Network: ${log.location.network || 'N/A'}\n\n`;
+
+                // List all IPs found
+                if (log.location.allIPsSummary && log.location.allIPsSummary.length > 0) {
+                    textContent += '  --- Complete IP List ---\n';
+                    log.location.allIPsSummary.forEach((ipInfo, idx) => {
+                        textContent += `    ${idx + 1}. ${ipInfo.ip} [${ipInfo.type}]\n`;
+                    });
+                    textContent += '\n';
+                }
+
+                // WebRTC detected IPs
+                if (log.location.allIPs && log.location.allIPs.webrtc) {
+                    textContent += '  --- WebRTC Local/Private IPs ---\n';
+                    if (log.location.allIPs.webrtc.private && log.location.allIPs.webrtc.private.length > 0) {
+                        log.location.allIPs.webrtc.private.forEach(ip => {
+                            textContent += `    Private: ${ip}\n`;
+                        });
+                    } else {
+                        textContent += '    No private IPs detected via WebRTC\n';
+                    }
+                    if (log.location.allIPs.webrtc.public && log.location.allIPs.webrtc.public.length > 0) {
+                        log.location.allIPs.webrtc.public.forEach(ip => {
+                            textContent += `    Public (STUN): ${ip}\n`;
+                        });
+                    }
+                    if (log.location.allIPs.webrtc.ipv6 && log.location.allIPs.webrtc.ipv6.length > 0) {
+                        log.location.allIPs.webrtc.ipv6.forEach(ip => {
+                            textContent += `    IPv6: ${ip}\n`;
+                        });
+                    }
+                    textContent += '\n';
+                }
+
+                // IP Sources verification
+                if (log.location.allIPs && log.location.allIPs.public && log.location.allIPs.public.sources) {
+                    textContent += '  --- IP Sources Verification ---\n';
+                    Object.entries(log.location.allIPs.public.sources).forEach(([source, ip]) => {
+                        textContent += `    ${source}: ${ip}\n`;
+                    });
+                    textContent += '\n';
+                }
+            }
+
+            textContent += '\nLOCATION & GEOLOCATION:\n';
+            if (log.location) {
+                textContent += `  City: ${log.location.city || 'N/A'}\n`;
+                textContent += `  District: ${log.location.district || 'N/A'}\n`;
+                textContent += `  Region/State: ${log.location.region || 'N/A'} (${log.location.regionCode || 'N/A'})\n`;
+                textContent += `  Country: ${log.location.country || 'N/A'} (${log.location.countryCode || 'N/A'})\n`;
+                textContent += `  Zip/Postal Code: ${log.location.zipCode || 'N/A'}\n`;
+                textContent += `  Coordinates: ${log.location.latitude || 'N/A'}, ${log.location.longitude || 'N/A'}\n`;
+                textContent += `  Continent: ${log.location.continentCode || 'N/A'}\n`;
+                textContent += `  Country Capital: ${log.location.countryCapital || 'N/A'}\n`;
+                textContent += `  Country Calling Code: ${log.location.countryCallingCode || 'N/A'}\n`;
+                textContent += `  Languages: ${log.location.languages || 'N/A'}\n`;
+                textContent += `  Currency: ${log.location.currency || 'N/A'}\n`;
+                textContent += `  In EU: ${log.location.inEU || 'N/A'}\n`;
+            }
+
+            textContent += '\nTIMEZONE & TIME:\n';
+            if (log.location) {
+                textContent += `  Timezone: ${log.location.timezone || 'N/A'}\n`;
+                textContent += `  UTC Offset: ${log.location.utcOffset || 'N/A'}\n`;
+            }
+
+            textContent += '\nNETWORK & ISP DETAILS:\n';
+            if (log.location) {
+                textContent += `  ISP: ${log.location.isp || 'N/A'}\n`;
+                textContent += `  Organization: ${log.location.organization || 'N/A'}\n`;
+                textContent += `  ASN: ${log.location.asn || 'N/A'}\n`;
+                textContent += `  ASN Name: ${log.location.asnName || 'N/A'}\n`;
+                textContent += `  Reverse DNS: ${log.location.reverseDNS || 'N/A'}\n`;
+                textContent += `  Connection Type: ${log.location.connectionType || 'N/A'}\n`;
+            }
+
+            textContent += '\nSECURITY & ANONYMITY DETECTION:\n';
+            if (log.location) {
                 textContent += `  Is Mobile Network: ${log.location.isMobile || 'N/A'}\n`;
-                textContent += `  Is Proxy/VPN: ${log.location.isProxy || 'N/A'}\n`;
-                textContent += `  Is Data Center: ${log.location.isHosting || 'N/A'}\n`;
+                textContent += `  Is Proxy: ${log.location.isProxy || 'N/A'}\n`;
+                textContent += `  Is VPN: ${log.location.isVPN || 'N/A'}\n`;
+                textContent += `  Is Tor: ${log.location.isTor || 'N/A'}\n`;
+                textContent += `  Is Hosting/Data Center: ${log.location.isHosting || 'N/A'}\n`;
             }
 
             textContent += '\nDEVICE INFORMATION:\n';
