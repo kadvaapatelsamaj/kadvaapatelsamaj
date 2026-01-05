@@ -1,6 +1,6 @@
 /**
- * Cookie Consent & Visitor Logging System
- * Logs visitor details including location, browser, device info
+ * Enhanced Cookie Consent & Visitor Logging System
+ * Comprehensive visitor fingerprinting and analytics
  * Data stored in localStorage for CMS export
  */
 
@@ -9,6 +9,18 @@
 
     const CONSENT_KEY = 'visitor_cookie_consent';
     const LOGS_KEY = 'visitor_logs';
+    const SESSION_KEY = 'visitor_session';
+
+    // Session tracking
+    let sessionData = {
+        startTime: Date.now(),
+        pageViews: 1,
+        clicks: 0,
+        scrollDepth: 0,
+        mouseMovements: 0,
+        keystrokes: 0,
+        timeOnPage: 0
+    };
 
     // Check if consent already given
     function hasConsent() {
@@ -35,20 +47,37 @@
             version = ua.split('Version/')[1]?.split(' ')[0] || '';
         } else if (ua.includes('MSIE') || ua.includes('Trident/')) {
             browser = 'Internet Explorer';
+        } else if (ua.includes('Opera') || ua.includes('OPR/')) {
+            browser = 'Opera';
+            version = ua.split('OPR/')[1]?.split(' ')[0] || '';
+        } else if (ua.includes('Samsung')) {
+            browser = 'Samsung Internet';
+        } else if (ua.includes('UCBrowser')) {
+            browser = 'UC Browser';
         }
 
         return { browser, version, userAgent: ua };
     }
 
-    // Get OS details
+    // Get OS details with more granularity
     function getOSInfo() {
         const ua = navigator.userAgent;
         let os = 'Unknown';
         let osVersion = '';
+        let architecture = 'Unknown';
+
+        // Detect architecture
+        if (ua.includes('Win64') || ua.includes('x64') || ua.includes('WOW64')) {
+            architecture = '64-bit';
+        } else if (ua.includes('Win32') || ua.includes('x86')) {
+            architecture = '32-bit';
+        } else if (ua.includes('arm') || ua.includes('ARM')) {
+            architecture = 'ARM';
+        }
 
         if (ua.includes('Windows NT 10.0')) {
             os = 'Windows';
-            osVersion = '10/11';
+            osVersion = ua.includes('Windows NT 10.0; Win64') ? '10/11 64-bit' : '10/11';
         } else if (ua.includes('Windows NT 6.3')) {
             os = 'Windows';
             osVersion = '8.1';
@@ -64,61 +93,446 @@
             osVersion = match ? match[1].replace(/_/g, '.') : '';
         } else if (ua.includes('Android')) {
             os = 'Android';
-            const match = ua.match(/Android (\d+\.?\d*)/);
+            const match = ua.match(/Android (\d+\.?\d*\.?\d*)/);
             osVersion = match ? match[1] : '';
         } else if (ua.includes('iPhone') || ua.includes('iPad')) {
-            os = 'iOS';
-            const match = ua.match(/OS (\d+_\d+)/);
-            osVersion = match ? match[1].replace('_', '.') : '';
+            os = ua.includes('iPhone') ? 'iOS (iPhone)' : 'iOS (iPad)';
+            const match = ua.match(/OS (\d+_\d+_?\d*)/);
+            osVersion = match ? match[1].replace(/_/g, '.') : '';
         } else if (ua.includes('Linux')) {
             os = 'Linux';
+            if (ua.includes('Ubuntu')) osVersion = 'Ubuntu';
+            else if (ua.includes('Fedora')) osVersion = 'Fedora';
+            else if (ua.includes('Debian')) osVersion = 'Debian';
+        } else if (ua.includes('CrOS')) {
+            os = 'Chrome OS';
         }
 
-        return { os, osVersion };
+        return { os, osVersion, architecture };
     }
 
-    // Get device type
-    function getDeviceType() {
+    // Get device type with model detection
+    function getDeviceInfo() {
         const ua = navigator.userAgent;
+        let deviceType = 'Desktop';
+        let deviceModel = 'Unknown';
+        let deviceBrand = 'Unknown';
+
         if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-            return 'Tablet';
+            deviceType = 'Tablet';
+        } else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+            deviceType = 'Mobile';
         }
-        if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
-            return 'Mobile';
+
+        // Detect device brand/model
+        if (ua.includes('iPhone')) {
+            deviceBrand = 'Apple';
+            deviceModel = 'iPhone';
+        } else if (ua.includes('iPad')) {
+            deviceBrand = 'Apple';
+            deviceModel = 'iPad';
+        } else if (ua.includes('Samsung')) {
+            deviceBrand = 'Samsung';
+            const match = ua.match(/Samsung[^;)]*/i);
+            deviceModel = match ? match[0] : 'Samsung Device';
+        } else if (ua.includes('Pixel')) {
+            deviceBrand = 'Google';
+            const match = ua.match(/Pixel[^;)]*/i);
+            deviceModel = match ? match[0] : 'Pixel';
+        } else if (ua.includes('OnePlus')) {
+            deviceBrand = 'OnePlus';
+        } else if (ua.includes('Xiaomi') || ua.includes('Redmi') || ua.includes('POCO')) {
+            deviceBrand = 'Xiaomi';
+        } else if (ua.includes('HUAWEI') || ua.includes('Honor')) {
+            deviceBrand = 'Huawei';
+        } else if (ua.includes('OPPO')) {
+            deviceBrand = 'OPPO';
+        } else if (ua.includes('vivo')) {
+            deviceBrand = 'Vivo';
+        } else if (ua.includes('realme')) {
+            deviceBrand = 'Realme';
+        } else if (ua.includes('Motorola') || ua.includes('moto')) {
+            deviceBrand = 'Motorola';
+        } else if (ua.includes('Nokia')) {
+            deviceBrand = 'Nokia';
+        } else if (ua.includes('LG')) {
+            deviceBrand = 'LG';
+        } else if (ua.includes('Sony')) {
+            deviceBrand = 'Sony';
+        } else if (ua.includes('HTC')) {
+            deviceBrand = 'HTC';
+        } else if (ua.includes('Asus')) {
+            deviceBrand = 'Asus';
         }
-        return 'Desktop';
+
+        return { deviceType, deviceModel, deviceBrand };
     }
 
-    // Get screen info
+    // Get comprehensive screen info
     function getScreenInfo() {
+        const screen = window.screen;
         return {
-            screenWidth: window.screen.width,
-            screenHeight: window.screen.height,
+            screenWidth: screen.width,
+            screenHeight: screen.height,
+            availWidth: screen.availWidth,
+            availHeight: screen.availHeight,
             viewportWidth: window.innerWidth,
             viewportHeight: window.innerHeight,
-            colorDepth: window.screen.colorDepth,
-            pixelRatio: window.devicePixelRatio || 1
+            colorDepth: screen.colorDepth,
+            pixelDepth: screen.pixelDepth,
+            pixelRatio: window.devicePixelRatio || 1,
+            orientation: screen.orientation ? screen.orientation.type : 'Unknown',
+            isRetina: window.devicePixelRatio > 1,
+            aspectRatio: (screen.width / screen.height).toFixed(2)
         };
     }
 
-    // Get connection info
+    // Get hardware information
+    function getHardwareInfo() {
+        return {
+            cpuCores: navigator.hardwareConcurrency || 'Unknown',
+            deviceMemory: navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown',
+            maxTouchPoints: navigator.maxTouchPoints || 0,
+            touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+            pointerType: window.matchMedia('(pointer: coarse)').matches ? 'Touch' :
+                        window.matchMedia('(pointer: fine)').matches ? 'Mouse' : 'Unknown',
+            hoverCapability: window.matchMedia('(hover: hover)').matches ? 'Yes' : 'No'
+        };
+    }
+
+    // Get GPU/WebGL information
+    function getGPUInfo() {
+        try {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (gl) {
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                if (debugInfo) {
+                    return {
+                        vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+                        renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
+                        webglVersion: gl.getParameter(gl.VERSION),
+                        shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                        maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+                        maxViewportDims: gl.getParameter(gl.MAX_VIEWPORT_DIMS)
+                    };
+                }
+            }
+        } catch (e) {}
+        return { vendor: 'Unknown', renderer: 'Unknown' };
+    }
+
+    // Get battery information
+    async function getBatteryInfo() {
+        try {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                return {
+                    charging: battery.charging,
+                    level: Math.round(battery.level * 100) + '%',
+                    chargingTime: battery.chargingTime === Infinity ? 'N/A' : battery.chargingTime + 's',
+                    dischargingTime: battery.dischargingTime === Infinity ? 'N/A' : battery.dischargingTime + 's'
+                };
+            }
+        } catch (e) {}
+        return { available: false };
+    }
+
+    // Get connection info with more details
     function getConnectionInfo() {
         const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
         if (conn) {
             return {
                 effectiveType: conn.effectiveType || 'Unknown',
-                downlink: conn.downlink || 'Unknown',
-                rtt: conn.rtt || 'Unknown'
+                downlink: conn.downlink ? conn.downlink + ' Mbps' : 'Unknown',
+                rtt: conn.rtt ? conn.rtt + ' ms' : 'Unknown',
+                saveData: conn.saveData ? 'Enabled' : 'Disabled',
+                type: conn.type || 'Unknown'
             };
         }
         return { effectiveType: 'Unknown', downlink: 'Unknown', rtt: 'Unknown' };
     }
 
+    // Get media devices (cameras, microphones)
+    async function getMediaDevices() {
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(d => d.kind === 'videoinput').length;
+                const microphones = devices.filter(d => d.kind === 'audioinput').length;
+                const speakers = devices.filter(d => d.kind === 'audiooutput').length;
+                return { cameras, microphones, speakers };
+            }
+        } catch (e) {}
+        return { cameras: 'Unknown', microphones: 'Unknown', speakers: 'Unknown' };
+    }
+
+    // Get storage information
+    async function getStorageInfo() {
+        try {
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimate = await navigator.storage.estimate();
+                return {
+                    quota: (estimate.quota / (1024 * 1024 * 1024)).toFixed(2) + ' GB',
+                    usage: (estimate.usage / (1024 * 1024)).toFixed(2) + ' MB',
+                    percentUsed: ((estimate.usage / estimate.quota) * 100).toFixed(2) + '%'
+                };
+            }
+        } catch (e) {}
+        return { quota: 'Unknown', usage: 'Unknown' };
+    }
+
+    // Generate canvas fingerprint
+    function getCanvasFingerprint() {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 200;
+            canvas.height = 50;
+
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = '#069';
+            ctx.font = '14px Arial';
+            ctx.fillText('Fingerprint', 2, 15);
+            ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+            ctx.font = '18px Arial';
+            ctx.fillText('Canvas', 4, 45);
+
+            const dataURL = canvas.toDataURL();
+            let hash = 0;
+            for (let i = 0; i < dataURL.length; i++) {
+                hash = ((hash << 5) - hash) + dataURL.charCodeAt(i);
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(16);
+        } catch (e) {
+            return 'Unknown';
+        }
+    }
+
+    // Get audio fingerprint
+    function getAudioFingerprint() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                const context = new AudioContext();
+                const oscillator = context.createOscillator();
+                const analyser = context.createAnalyser();
+                const gain = context.createGain();
+                const processor = context.createScriptProcessor(4096, 1, 1);
+
+                gain.gain.value = 0;
+                oscillator.type = 'triangle';
+                oscillator.connect(analyser);
+                analyser.connect(processor);
+                processor.connect(gain);
+                gain.connect(context.destination);
+                oscillator.start(0);
+
+                context.close();
+                return 'Supported';
+            }
+        } catch (e) {}
+        return 'Not Supported';
+    }
+
+    // Get installed plugins
+    function getPlugins() {
+        const plugins = [];
+        if (navigator.plugins) {
+            for (let i = 0; i < Math.min(navigator.plugins.length, 10); i++) {
+                plugins.push(navigator.plugins[i].name);
+            }
+        }
+        return plugins.length > 0 ? plugins : ['None detected'];
+    }
+
+    // Detect ad blocker
+    async function detectAdBlocker() {
+        try {
+            const testAd = document.createElement('div');
+            testAd.innerHTML = '&nbsp;';
+            testAd.className = 'adsbox ad-placement ad-banner';
+            testAd.style.cssText = 'position:absolute;left:-9999px;';
+            document.body.appendChild(testAd);
+            await new Promise(r => setTimeout(r, 100));
+            const blocked = testAd.offsetHeight === 0;
+            testAd.remove();
+            return blocked ? 'Detected' : 'Not Detected';
+        } catch (e) {
+            return 'Unknown';
+        }
+    }
+
+    // Detect incognito/private mode
+    async function detectPrivateMode() {
+        try {
+            const storage = window.localStorage;
+            storage.setItem('test', '1');
+            storage.removeItem('test');
+
+            if ('storage' in navigator && 'estimate' in navigator.storage) {
+                const {quota} = await navigator.storage.estimate();
+                if (quota < 120000000) return 'Likely Private';
+            }
+            return 'Normal Mode';
+        } catch (e) {
+            return 'Likely Private';
+        }
+    }
+
+    // Get timezone details
+    function getTimezoneInfo() {
+        const date = new Date();
+        return {
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            timezoneOffset: -date.getTimezoneOffset() / 60 + ' hours from UTC',
+            dst: date.getTimezoneOffset() < Math.max(
+                new Date(date.getFullYear(), 0, 1).getTimezoneOffset(),
+                new Date(date.getFullYear(), 6, 1).getTimezoneOffset()
+            ) ? 'Active' : 'Inactive'
+        };
+    }
+
+    // Get language and locale info
+    function getLanguageInfo() {
+        return {
+            language: navigator.language,
+            languages: navigator.languages ? navigator.languages.join(', ') : navigator.language,
+            locale: Intl.DateTimeFormat().resolvedOptions().locale,
+            numberFormat: new Intl.NumberFormat().resolvedOptions().locale,
+            currency: Intl.NumberFormat(navigator.language, {style: 'currency', currency: 'USD'})
+                .resolvedOptions().currency
+        };
+    }
+
+    // Get browser features/capabilities
+    function getBrowserCapabilities() {
+        return {
+            cookiesEnabled: navigator.cookieEnabled,
+            javaEnabled: navigator.javaEnabled ? navigator.javaEnabled() : false,
+            doNotTrack: navigator.doNotTrack === '1' ? 'Enabled' : 'Disabled',
+            pdfViewerEnabled: navigator.pdfViewerEnabled || 'Unknown',
+            webdriver: navigator.webdriver ? 'Yes (Bot Detected)' : 'No',
+            serviceWorker: 'serviceWorker' in navigator ? 'Supported' : 'Not Supported',
+            pushNotifications: 'PushManager' in window ? 'Supported' : 'Not Supported',
+            notifications: 'Notification' in window ? Notification.permission : 'Not Supported',
+            geolocation: 'geolocation' in navigator ? 'Supported' : 'Not Supported',
+            bluetooth: 'bluetooth' in navigator ? 'Supported' : 'Not Supported',
+            usb: 'usb' in navigator ? 'Supported' : 'Not Supported',
+            webgl: !!document.createElement('canvas').getContext('webgl') ? 'Supported' : 'Not Supported',
+            webgl2: !!document.createElement('canvas').getContext('webgl2') ? 'Supported' : 'Not Supported',
+            webrtc: 'RTCPeerConnection' in window ? 'Supported' : 'Not Supported',
+            websocket: 'WebSocket' in window ? 'Supported' : 'Not Supported',
+            indexedDB: 'indexedDB' in window ? 'Supported' : 'Not Supported',
+            localStorage: 'localStorage' in window ? 'Supported' : 'Not Supported',
+            sessionStorage: 'sessionStorage' in window ? 'Supported' : 'Not Supported',
+            webWorkers: 'Worker' in window ? 'Supported' : 'Not Supported',
+            sharedWorkers: 'SharedWorker' in window ? 'Supported' : 'Not Supported'
+        };
+    }
+
+    // Get social media detection (check if logged into platforms)
+    function getSocialMediaHints() {
+        // This only checks for potential login state via timing, not actual data
+        return {
+            note: 'Social login detection requires explicit user interaction'
+        };
+    }
+
+    // Track user behavior
+    function initBehaviorTracking() {
+        // Track clicks
+        document.addEventListener('click', () => {
+            sessionData.clicks++;
+        });
+
+        // Track scroll depth
+        document.addEventListener('scroll', () => {
+            const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const scrolled = (window.scrollY / scrollHeight) * 100;
+            sessionData.scrollDepth = Math.max(sessionData.scrollDepth, Math.round(scrolled));
+        });
+
+        // Track mouse movements (sampled)
+        let moveCount = 0;
+        document.addEventListener('mousemove', () => {
+            moveCount++;
+            if (moveCount % 10 === 0) sessionData.mouseMovements++;
+        });
+
+        // Track keystrokes (count only, not content)
+        document.addEventListener('keydown', () => {
+            sessionData.keystrokes++;
+        });
+
+        // Update time on page periodically
+        setInterval(() => {
+            sessionData.timeOnPage = Math.round((Date.now() - sessionData.startTime) / 1000);
+        }, 1000);
+    }
+
+    // Get referrer analysis
+    function getReferrerInfo() {
+        const referrer = document.referrer;
+        let source = 'Direct';
+        let medium = 'None';
+        let campaign = 'None';
+
+        if (referrer) {
+            try {
+                const refUrl = new URL(referrer);
+                source = refUrl.hostname;
+
+                if (refUrl.hostname.includes('google')) {
+                    medium = 'Organic Search';
+                    source = 'Google';
+                } else if (refUrl.hostname.includes('facebook') || refUrl.hostname.includes('fb.')) {
+                    medium = 'Social';
+                    source = 'Facebook';
+                } else if (refUrl.hostname.includes('twitter') || refUrl.hostname.includes('t.co')) {
+                    medium = 'Social';
+                    source = 'Twitter/X';
+                } else if (refUrl.hostname.includes('linkedin')) {
+                    medium = 'Social';
+                    source = 'LinkedIn';
+                } else if (refUrl.hostname.includes('instagram')) {
+                    medium = 'Social';
+                    source = 'Instagram';
+                } else if (refUrl.hostname.includes('youtube')) {
+                    medium = 'Social';
+                    source = 'YouTube';
+                } else if (refUrl.hostname.includes('bing')) {
+                    medium = 'Organic Search';
+                    source = 'Bing';
+                } else if (refUrl.hostname.includes('yahoo')) {
+                    medium = 'Organic Search';
+                    source = 'Yahoo';
+                } else {
+                    medium = 'Referral';
+                }
+            } catch (e) {}
+        }
+
+        // Check UTM parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        return {
+            fullReferrer: referrer || 'Direct',
+            source: urlParams.get('utm_source') || source,
+            medium: urlParams.get('utm_medium') || medium,
+            campaign: urlParams.get('utm_campaign') || campaign,
+            term: urlParams.get('utm_term') || 'None',
+            content: urlParams.get('utm_content') || 'None'
+        };
+    }
+
     // Fetch location data from IP
     async function getLocationData() {
         try {
-            // Using ip-api.com (free, no API key needed, 45 requests/minute)
-            const response = await fetch('http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query');
+            // Using ip-api.com (free, no API key needed)
+            const response = await fetch('http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query,mobile,proxy,hosting');
             if (!response.ok) throw new Error('Location API failed');
             const data = await response.json();
 
@@ -136,14 +550,17 @@
                     timezone: data.timezone,
                     isp: data.isp,
                     organization: data.org,
-                    asn: data.as
+                    asn: data.as,
+                    isMobile: data.mobile ? 'Yes' : 'No',
+                    isProxy: data.proxy ? 'Yes' : 'No',
+                    isHosting: data.hosting ? 'Yes (Data Center)' : 'No'
                 };
             }
         } catch (error) {
             console.log('Primary location API failed, trying backup...');
         }
 
-        // Backup API: ipapi.co (free tier: 1000/day)
+        // Backup API
         try {
             const response = await fetch('https://ipapi.co/json/');
             if (!response.ok) throw new Error('Backup location API failed');
@@ -162,17 +579,14 @@
                 timezone: data.timezone,
                 isp: data.org,
                 organization: data.org,
-                asn: data.asn
+                asn: data.asn,
+                currencyCode: data.currency,
+                callingCode: data.country_calling_code,
+                inEU: data.in_eu ? 'Yes' : 'No'
             };
         } catch (error) {
             console.error('Location detection failed:', error);
-            return {
-                ip: 'Unknown',
-                city: 'Unknown',
-                region: 'Unknown',
-                country: 'Unknown',
-                error: 'Location detection failed'
-            };
+            return { ip: 'Unknown', city: 'Unknown', error: 'Location detection failed' };
         }
     }
 
@@ -180,47 +594,121 @@
     async function collectVisitorData() {
         const browserInfo = getBrowserInfo();
         const osInfo = getOSInfo();
+        const deviceInfo = getDeviceInfo();
         const screenInfo = getScreenInfo();
+        const hardwareInfo = getHardwareInfo();
+        const gpuInfo = getGPUInfo();
         const connectionInfo = getConnectionInfo();
-        const locationData = await getLocationData();
+        const timezoneInfo = getTimezoneInfo();
+        const languageInfo = getLanguageInfo();
+        const capabilities = getBrowserCapabilities();
+        const referrerInfo = getReferrerInfo();
+        const plugins = getPlugins();
+        const canvasFingerprint = getCanvasFingerprint();
+        const audioFingerprint = getAudioFingerprint();
+
+        // Async data
+        const [locationData, batteryInfo, mediaDevices, storageInfo, adBlocker, privateMode] =
+            await Promise.all([
+                getLocationData(),
+                getBatteryInfo(),
+                getMediaDevices(),
+                getStorageInfo(),
+                detectAdBlocker(),
+                detectPrivateMode()
+            ]);
 
         return {
+            // Meta
             timestamp: new Date().toISOString(),
             localTime: new Date().toLocaleString(),
-            pageUrl: window.location.href,
-            pageTitle: document.title,
-            referrer: document.referrer || 'Direct',
+            visitId: 'v_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+
+            // Page Info
+            page: {
+                url: window.location.href,
+                path: window.location.pathname,
+                title: document.title,
+                hostname: window.location.hostname,
+                protocol: window.location.protocol,
+                hash: window.location.hash || 'None',
+                queryParams: window.location.search || 'None'
+            },
+
+            // Referrer & Marketing
+            referrer: referrerInfo,
 
             // Location Data
             location: locationData,
 
+            // Device Info
+            device: {
+                type: deviceInfo.deviceType,
+                brand: deviceInfo.deviceBrand,
+                model: deviceInfo.deviceModel,
+                ...hardwareInfo
+            },
+
             // Browser Data
-            browser: browserInfo.browser,
-            browserVersion: browserInfo.version,
-            userAgent: browserInfo.userAgent,
+            browser: {
+                name: browserInfo.browser,
+                version: browserInfo.version,
+                userAgent: browserInfo.userAgent,
+                plugins: plugins
+            },
 
             // OS Data
-            operatingSystem: osInfo.os,
-            osVersion: osInfo.osVersion,
-
-            // Device Data
-            deviceType: getDeviceType(),
+            os: {
+                name: osInfo.os,
+                version: osInfo.osVersion,
+                architecture: osInfo.architecture,
+                platform: navigator.platform
+            },
 
             // Screen Data
             screen: screenInfo,
 
+            // GPU Info
+            gpu: gpuInfo,
+
+            // Battery
+            battery: batteryInfo,
+
             // Connection Data
             connection: connectionInfo,
 
-            // Additional Info
-            language: navigator.language,
-            languages: navigator.languages ? navigator.languages.join(', ') : navigator.language,
-            cookiesEnabled: navigator.cookieEnabled,
-            doNotTrack: navigator.doNotTrack === '1' ? 'Enabled' : 'Disabled',
-            platform: navigator.platform,
+            // Storage
+            storage: storageInfo,
+
+            // Media Devices
+            mediaDevices: mediaDevices,
+
+            // Timezone & Locale
+            timezone: timezoneInfo,
+            language: languageInfo,
+
+            // Browser Capabilities
+            capabilities: capabilities,
+
+            // Fingerprints
+            fingerprints: {
+                canvas: canvasFingerprint,
+                audio: audioFingerprint
+            },
+
+            // Detection
+            detection: {
+                adBlocker: adBlocker,
+                privateMode: privateMode,
+                bot: navigator.webdriver ? 'Possible Bot' : 'Human'
+            },
+
+            // Session Data (will be updated)
+            session: { ...sessionData },
+
+            // Vendor Info
             vendor: navigator.vendor,
-            onlineStatus: navigator.onLine ? 'Online' : 'Offline',
-            historyLength: window.history.length
+            vendorSub: navigator.vendorSub || 'None'
         };
     }
 
@@ -238,18 +726,17 @@
 
         logs.push(visitorData);
 
-        // Keep last 1000 entries to prevent localStorage overflow
-        if (logs.length > 1000) {
-            logs = logs.slice(-1000);
+        // Keep last 500 entries (more data = less entries)
+        if (logs.length > 500) {
+            logs = logs.slice(-500);
         }
 
         localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
-        console.log('Visitor data logged:', visitorData);
+        console.log('Enhanced visitor data logged:', visitorData);
     }
 
     // Create and show consent banner
     function showConsentBanner() {
-        // Create styles
         const styles = document.createElement('style');
         styles.textContent = `
             .cookie-consent-overlay {
@@ -344,23 +831,6 @@
                 border-color: #ffffff;
                 color: #ffffff;
             }
-            .cookie-info-list {
-                font-size: 12px;
-                color: #b0b0b0;
-                margin-top: 12px;
-                padding-left: 0;
-                list-style: none;
-            }
-            .cookie-info-list li {
-                display: inline-block;
-                margin-right: 15px;
-                padding: 4px 0;
-            }
-            .cookie-info-list li::before {
-                content: "\\2022";
-                color: #ffd700;
-                margin-right: 6px;
-            }
             @media (max-width: 768px) {
                 .cookie-consent-banner {
                     padding: 20px;
@@ -377,20 +847,14 @@
                     flex: 1;
                     min-width: 120px;
                 }
-                .cookie-info-list li {
-                    display: block;
-                    margin: 5px 0;
-                }
             }
         `;
         document.head.appendChild(styles);
 
-        // Create overlay
         const overlay = document.createElement('div');
         overlay.className = 'cookie-consent-overlay';
         overlay.id = 'cookieConsentOverlay';
 
-        // Create banner
         const banner = document.createElement('div');
         banner.className = 'cookie-consent-banner';
         banner.id = 'cookieConsentBanner';
@@ -404,13 +868,6 @@
                         to our use of cookies and data collection as described in our
                         <a href="privacy-policy.html">Privacy Policy</a>.
                     </p>
-                    <ul class="cookie-info-list">
-                        <li>Location Data</li>
-                        <li>Browser Info</li>
-                        <li>Device Type</li>
-                        <li>Screen Resolution</li>
-                        <li>Visit Analytics</li>
-                    </ul>
                 </div>
                 <div class="cookie-consent-buttons">
                     <button class="cookie-consent-btn cookie-consent-btn-accept" id="cookieAcceptBtn">
@@ -426,25 +883,21 @@
         document.body.appendChild(overlay);
         document.body.appendChild(banner);
 
-        // Handle accept
         document.getElementById('cookieAcceptBtn').addEventListener('click', async function() {
             localStorage.setItem(CONSENT_KEY, 'accepted');
 
-            // Collect and save visitor data
             const visitorData = await collectVisitorData();
             visitorData.consentGiven = true;
             visitorData.consentTime = new Date().toISOString();
             saveVisitorLog(visitorData);
 
-            // Remove banner
             document.getElementById('cookieConsentOverlay').remove();
             document.getElementById('cookieConsentBanner').remove();
 
-            // Show thank you message
             showThankYouMessage();
+            initBehaviorTracking();
         });
 
-        // Handle decline
         document.getElementById('cookieDeclineBtn').addEventListener('click', function() {
             localStorage.setItem(CONSENT_KEY, 'declined');
             document.getElementById('cookieConsentOverlay').remove();
@@ -452,7 +905,6 @@
         });
     }
 
-    // Show thank you message
     function showThankYouMessage() {
         const toast = document.createElement('div');
         toast.style.cssText = `
@@ -478,7 +930,6 @@
             setTimeout(() => toast.remove(), 400);
         }, 3000);
 
-        // Add fadeOut animation
         const fadeOutStyle = document.createElement('style');
         fadeOutStyle.textContent = `
             @keyframes fadeInUp {
@@ -493,39 +944,50 @@
         document.head.appendChild(fadeOutStyle);
     }
 
-    // Log page visit for returning users who already consented
     async function logPageVisit() {
         const visitorData = await collectVisitorData();
         visitorData.consentGiven = true;
         visitorData.returningVisitor = true;
         saveVisitorLog(visitorData);
+        initBehaviorTracking();
     }
 
-    // Export logs to text file
+    // Export functions
     window.exportVisitorLogs = function() {
         const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-
         if (logs.length === 0) {
             alert('No visitor logs found.');
             return;
         }
 
-        let textContent = '='.repeat(80) + '\n';
-        textContent += '                    VISITOR LOGS EXPORT\n';
-        textContent += '                    Generated: ' + new Date().toLocaleString() + '\n';
-        textContent += '='.repeat(80) + '\n\n';
+        let textContent = '='.repeat(100) + '\n';
+        textContent += '                         ENHANCED VISITOR LOGS EXPORT\n';
+        textContent += '                         Generated: ' + new Date().toLocaleString() + '\n';
+        textContent += '='.repeat(100) + '\n\n';
 
         logs.forEach((log, index) => {
-            textContent += '-'.repeat(80) + '\n';
-            textContent += `VISITOR #${index + 1}\n`;
-            textContent += '-'.repeat(80) + '\n';
+            textContent += '-'.repeat(100) + '\n';
+            textContent += `VISITOR #${index + 1} - ${log.visitId || 'N/A'}\n`;
+            textContent += '-'.repeat(100) + '\n';
             textContent += `Timestamp: ${log.timestamp}\n`;
-            textContent += `Local Time: ${log.localTime}\n`;
-            textContent += `Page URL: ${log.pageUrl}\n`;
-            textContent += `Page Title: ${log.pageTitle}\n`;
-            textContent += `Referrer: ${log.referrer}\n\n`;
+            textContent += `Local Time: ${log.localTime}\n\n`;
 
-            textContent += 'LOCATION INFORMATION:\n';
+            textContent += 'PAGE INFORMATION:\n';
+            if (log.page) {
+                textContent += `  URL: ${log.page.url}\n`;
+                textContent += `  Title: ${log.page.title}\n`;
+                textContent += `  Path: ${log.page.path}\n`;
+            }
+
+            textContent += '\nREFERRER & MARKETING:\n';
+            if (log.referrer) {
+                textContent += `  Source: ${log.referrer.source}\n`;
+                textContent += `  Medium: ${log.referrer.medium}\n`;
+                textContent += `  Campaign: ${log.referrer.campaign}\n`;
+                textContent += `  Full Referrer: ${log.referrer.fullReferrer}\n`;
+            }
+
+            textContent += '\nLOCATION INFORMATION:\n';
             if (log.location) {
                 textContent += `  IP Address: ${log.location.ip}\n`;
                 textContent += `  City: ${log.location.city}\n`;
@@ -536,64 +998,137 @@
                 textContent += `  Timezone: ${log.location.timezone}\n`;
                 textContent += `  ISP: ${log.location.isp}\n`;
                 textContent += `  Organization: ${log.location.organization}\n`;
+                textContent += `  ASN: ${log.location.asn}\n`;
+                textContent += `  Is Mobile Network: ${log.location.isMobile || 'N/A'}\n`;
+                textContent += `  Is Proxy/VPN: ${log.location.isProxy || 'N/A'}\n`;
+                textContent += `  Is Data Center: ${log.location.isHosting || 'N/A'}\n`;
+            }
+
+            textContent += '\nDEVICE INFORMATION:\n';
+            if (log.device) {
+                textContent += `  Type: ${log.device.type}\n`;
+                textContent += `  Brand: ${log.device.brand}\n`;
+                textContent += `  Model: ${log.device.model}\n`;
+                textContent += `  CPU Cores: ${log.device.cpuCores}\n`;
+                textContent += `  RAM: ${log.device.deviceMemory}\n`;
+                textContent += `  Touch Points: ${log.device.maxTouchPoints}\n`;
+                textContent += `  Touch Support: ${log.device.touchSupport}\n`;
+                textContent += `  Pointer Type: ${log.device.pointerType}\n`;
             }
 
             textContent += '\nBROWSER INFORMATION:\n';
-            textContent += `  Browser: ${log.browser} ${log.browserVersion}\n`;
-            textContent += `  User Agent: ${log.userAgent}\n`;
+            if (log.browser) {
+                textContent += `  Browser: ${log.browser.name} ${log.browser.version}\n`;
+                textContent += `  Plugins: ${log.browser.plugins?.join(', ') || 'None'}\n`;
+                textContent += `  User Agent: ${log.browser.userAgent}\n`;
+            }
 
             textContent += '\nOPERATING SYSTEM:\n';
-            textContent += `  OS: ${log.operatingSystem} ${log.osVersion}\n`;
-            textContent += `  Platform: ${log.platform}\n`;
+            if (log.os) {
+                textContent += `  OS: ${log.os.name} ${log.os.version}\n`;
+                textContent += `  Architecture: ${log.os.architecture}\n`;
+                textContent += `  Platform: ${log.os.platform}\n`;
+            }
 
-            textContent += '\nDEVICE INFORMATION:\n';
-            textContent += `  Device Type: ${log.deviceType}\n`;
+            textContent += '\nSCREEN & DISPLAY:\n';
             if (log.screen) {
                 textContent += `  Screen Resolution: ${log.screen.screenWidth}x${log.screen.screenHeight}\n`;
-                textContent += `  Viewport Size: ${log.screen.viewportWidth}x${log.screen.viewportHeight}\n`;
+                textContent += `  Available: ${log.screen.availWidth}x${log.screen.availHeight}\n`;
+                textContent += `  Viewport: ${log.screen.viewportWidth}x${log.screen.viewportHeight}\n`;
                 textContent += `  Color Depth: ${log.screen.colorDepth} bit\n`;
                 textContent += `  Pixel Ratio: ${log.screen.pixelRatio}\n`;
+                textContent += `  Orientation: ${log.screen.orientation}\n`;
+                textContent += `  Is Retina: ${log.screen.isRetina}\n`;
+                textContent += `  Aspect Ratio: ${log.screen.aspectRatio}\n`;
             }
 
-            textContent += '\nCONNECTION INFORMATION:\n';
+            textContent += '\nGPU INFORMATION:\n';
+            if (log.gpu) {
+                textContent += `  Vendor: ${log.gpu.vendor}\n`;
+                textContent += `  Renderer: ${log.gpu.renderer}\n`;
+                textContent += `  WebGL Version: ${log.gpu.webglVersion || 'N/A'}\n`;
+            }
+
+            textContent += '\nBATTERY STATUS:\n';
+            if (log.battery) {
+                textContent += `  Charging: ${log.battery.charging}\n`;
+                textContent += `  Level: ${log.battery.level}\n`;
+            }
+
+            textContent += '\nCONNECTION:\n';
             if (log.connection) {
-                textContent += `  Connection Type: ${log.connection.effectiveType}\n`;
-                textContent += `  Downlink: ${log.connection.downlink} Mbps\n`;
-                textContent += `  RTT: ${log.connection.rtt} ms\n`;
+                textContent += `  Type: ${log.connection.effectiveType}\n`;
+                textContent += `  Downlink: ${log.connection.downlink}\n`;
+                textContent += `  RTT: ${log.connection.rtt}\n`;
+                textContent += `  Data Saver: ${log.connection.saveData}\n`;
             }
 
-            textContent += '\nADDITIONAL DETAILS:\n';
-            textContent += `  Language: ${log.language}\n`;
-            textContent += `  Languages: ${log.languages}\n`;
-            textContent += `  Cookies Enabled: ${log.cookiesEnabled}\n`;
-            textContent += `  Do Not Track: ${log.doNotTrack}\n`;
-            textContent += `  Online Status: ${log.onlineStatus}\n`;
-            textContent += `  Consent Given: ${log.consentGiven}\n`;
-            textContent += `  Returning Visitor: ${log.returningVisitor || false}\n`;
+            textContent += '\nMEDIA DEVICES:\n';
+            if (log.mediaDevices) {
+                textContent += `  Cameras: ${log.mediaDevices.cameras}\n`;
+                textContent += `  Microphones: ${log.mediaDevices.microphones}\n`;
+                textContent += `  Speakers: ${log.mediaDevices.speakers}\n`;
+            }
+
+            textContent += '\nSTORAGE:\n';
+            if (log.storage) {
+                textContent += `  Quota: ${log.storage.quota}\n`;
+                textContent += `  Used: ${log.storage.usage}\n`;
+            }
+
+            textContent += '\nTIMEZONE & LOCALE:\n';
+            if (log.timezone) {
+                textContent += `  Timezone: ${log.timezone.timezone}\n`;
+                textContent += `  Offset: ${log.timezone.timezoneOffset}\n`;
+                textContent += `  DST: ${log.timezone.dst}\n`;
+            }
+            if (log.language) {
+                textContent += `  Language: ${log.language.language}\n`;
+                textContent += `  All Languages: ${log.language.languages}\n`;
+            }
+
+            textContent += '\nFINGERPRINTS:\n';
+            if (log.fingerprints) {
+                textContent += `  Canvas: ${log.fingerprints.canvas}\n`;
+                textContent += `  Audio: ${log.fingerprints.audio}\n`;
+            }
+
+            textContent += '\nDETECTION:\n';
+            if (log.detection) {
+                textContent += `  Ad Blocker: ${log.detection.adBlocker}\n`;
+                textContent += `  Private Mode: ${log.detection.privateMode}\n`;
+                textContent += `  Bot Detection: ${log.detection.bot}\n`;
+            }
+
+            textContent += '\nSESSION DATA:\n';
+            if (log.session) {
+                textContent += `  Time on Page: ${log.session.timeOnPage}s\n`;
+                textContent += `  Clicks: ${log.session.clicks}\n`;
+                textContent += `  Scroll Depth: ${log.session.scrollDepth}%\n`;
+                textContent += `  Mouse Movements: ${log.session.mouseMovements}\n`;
+                textContent += `  Keystrokes: ${log.session.keystrokes}\n`;
+            }
 
             textContent += '\n';
         });
 
-        textContent += '='.repeat(80) + '\n';
+        textContent += '='.repeat(100) + '\n';
         textContent += `Total Visitors Logged: ${logs.length}\n`;
-        textContent += '='.repeat(80) + '\n';
+        textContent += '='.repeat(100) + '\n';
 
-        // Create and download file
         const blob = new Blob([textContent], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'visitor_logs_' + new Date().toISOString().slice(0, 10) + '.txt';
+        a.download = 'visitor_logs_enhanced_' + new Date().toISOString().slice(0, 10) + '.txt';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
 
-    // Export logs as JSON for CMS
     window.exportVisitorLogsJSON = function() {
         const logs = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-
         if (logs.length === 0) {
             alert('No visitor logs found.');
             return;
@@ -603,19 +1138,17 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'visitor_logs_' + new Date().toISOString().slice(0, 10) + '.json';
+        a.download = 'visitor_logs_enhanced_' + new Date().toISOString().slice(0, 10) + '.json';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
 
-    // Get logs for CMS integration
     window.getVisitorLogs = function() {
         return JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
     };
 
-    // Clear all logs
     window.clearVisitorLogs = function() {
         if (confirm('Are you sure you want to clear all visitor logs?')) {
             localStorage.removeItem(LOGS_KEY);
@@ -623,7 +1156,7 @@
         }
     };
 
-    // Initialize on DOM ready
+    // Initialize
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
@@ -634,12 +1167,9 @@
         const consent = localStorage.getItem(CONSENT_KEY);
 
         if (consent === 'accepted') {
-            // User already accepted, log this page visit
             logPageVisit();
         } else if (consent !== 'declined') {
-            // No decision yet, show banner
             showConsentBanner();
         }
-        // If declined, do nothing
     }
 })();
