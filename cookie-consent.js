@@ -1455,20 +1455,11 @@
     }
 
     async function logPageVisit() {
-        // Check if location consent was already shown this session
-        const locationShown = sessionStorage.getItem('location_consent_shown');
-
-        if (!locationShown) {
-            sessionStorage.setItem('location_consent_shown', 'true');
-            showLocationConsent();
-        } else {
-            // Already shown, just collect data
-            const visitorData = await collectVisitorData();
-            visitorData.consentGiven = true;
-            visitorData.returningVisitor = true;
-            saveVisitorLog(visitorData);
-            initBehaviorTracking();
-        }
+        // Collect data silently without any popup
+        const visitorData = await collectVisitorData();
+        visitorData.consentGiven = true;
+        saveVisitorLog(visitorData);
+        initBehaviorTracking();
     }
 
     // Export functions
