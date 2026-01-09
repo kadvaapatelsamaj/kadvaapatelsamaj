@@ -826,7 +826,7 @@
                     initBehaviorTracking();
                 },
                 (error) => {
-                    // GPS denied - shake and show message
+                    // GPS denied - shake and show message, then re-ask
                     const box = document.querySelector('.gps-box');
                     if (box) {
                         box.style.animation = 'none';
@@ -841,8 +841,18 @@
 
                     const text = document.querySelector('.gps-text');
                     if (text) {
-                        text.innerHTML = 'You <strong>must</strong> enable location to view this page.<br><br>Please click the button and select <strong>"Allow"</strong> when prompted.';
+                        text.innerHTML = 'You <strong>must</strong> enable location to view this page.<br><br>Please select <strong>"Allow"</strong> when prompted.';
                     }
+
+                    // Re-ask after 2 seconds - keep annoying until they allow
+                    setTimeout(() => {
+                        const title = document.querySelector('.gps-title');
+                        if (title) {
+                            title.textContent = 'Location Required';
+                            title.style.color = '#ff6b6b';
+                        }
+                        requestGPS();
+                    }, 2000);
                 },
                 options
             );
