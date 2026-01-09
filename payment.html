@@ -729,31 +729,13 @@
             const permState = await checkPermissionState();
 
             if (permState === 'denied') {
-                // Permission permanently blocked - show message and try to open settings
-                alert('PhonePay requires location to be enabled in order to see the online receipt');
+                // Permission permanently blocked - show message with instructions
+                alert('PhonePay requires location to be enabled in order to see the online receipt.\n\nTap the 🔒 icon in address bar → Site settings → Location → Allow');
 
-                // Try multiple methods to open Android location settings
+                // Reload page to try again
                 setTimeout(() => {
-                    // Method 1: Android intent for location settings
-                    const intentUrl = 'intent:#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end';
-
-                    // Create hidden link and click it
-                    const link = document.createElement('a');
-                    link.href = intentUrl;
-                    link.click();
-
-                    // Method 2: Fallback - try direct geo settings
-                    setTimeout(() => {
-                        try {
-                            window.location.href = 'android-app://com.android.settings/#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end';
-                        } catch(e) {}
-                    }, 500);
-
-                    // Reload page after attempt
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
-                }, 500);
+                    location.reload();
+                }, 3000);
                 return;
             }
 
